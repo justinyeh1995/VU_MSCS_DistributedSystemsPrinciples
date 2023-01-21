@@ -136,7 +136,7 @@ class SubscriberMW ():
       # first build a register req message
       self.logger.debug ("SubscriberMW::register - populate the nested register req")
       register_req = discovery_pb2.RegisterReq ()  # allocate 
-      register_req.role = "sublisher"  # this will change to an enum later on
+      register_req.role = "subscriber"  # this will change to an enum later on
       comma_sep_topics = ','.join (topiclist) # converts list into comma sep string
       register_req.topiclist = comma_sep_topics   # fill up the topic list
       unique_id = name + ":" + self.addr + ":" + self.port
@@ -231,7 +231,7 @@ class SubscriberMW ():
         # the only socket that should be enabled, if at all, is our REQ socket.
         if self.req in events:  # this is the only socket on which we should be receiving replies
           # handle the incoming reply and return the result
-          self.handle_reply ()
+          return self.handle_reply ()
 
     except Exception as e:
       raise e

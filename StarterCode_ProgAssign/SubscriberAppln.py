@@ -11,19 +11,19 @@
 
 
 # This is left as an exercise to the student. Design the logic in a manner similar
-# to the SubscriberAppln. As in the sublisher application, the subscriber application
-# will maintain a handle to the underlying subscriber middleware object.
+# to the PublisherAppln. As in the publisher application, the pubblisher application
+# will maintain a handle to the underlying publisher middleware object.
 #
 # The key steps for the subscriber application are
 # (1) parse command line and configure application level parameters
 # (2) obtain the subscriber middleware object and configure it.
-# (3) As in the sublisher, register ourselves with the discovery service
+# (3) As in the publisher, register ourselves with the discovery service
 # (4) since we are a subscriber, we need to ask the discovery service to
-# let us know of each sublisher that sublishes the topic of interest to us. Then
-# our middleware object will connect its SUB socket to all these sublishers
+# let us know of each publisher that publishes the topic of interest to us. Then
+# our middleware object will connect its SUB socket to all these publishers
 # for the Direct strategy else connect just to the broker.
 # (5) Subscriber will always be in an event loop waiting for some matching
-# sublication to show up. We also compute the latency for dissemination and
+# publication to show up. We also compute the latency for dissemination and
 # store all these time series data in some database for later analytics.
 
 # import the needed packages
@@ -175,8 +175,6 @@ def parseCmdLineArgs ():
 
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 
-  parser.add_argument ("-i", "--iters", type=int, default=1000, help="number of sublication iterations (default: 1000)")
-
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   
   return parser.parse_args()
@@ -191,7 +189,7 @@ def main ():
   try:
     # obtain a system wide logger and initialize it to debug level to begin with
     logging.debug ("Main - acquire a child logger and then log messages in the child")
-    logger = logging.getLogger ("PubAppln")
+    logger = logging.getLogger ("SubAppln")
     
     # first parse the arguments
     logger.debug ("Main: parse command line arguments")
