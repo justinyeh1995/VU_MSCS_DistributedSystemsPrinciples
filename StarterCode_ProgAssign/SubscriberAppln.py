@@ -124,7 +124,7 @@ class SubscriberAppln ():
       ts = TopicSelector ()
       for i in range (self.iters):
         for topic in self.topiclist:
-          dissemination_data = topic + ":" + ts.gen_sublication (topic)
+          dissemination_data = topic + ":" + ts.gen_publication (topic)
           self.mw_obj.disseminate (dissemination_data)
         
     except Exception as e:
