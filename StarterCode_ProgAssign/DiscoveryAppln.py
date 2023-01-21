@@ -28,3 +28,30 @@
 # (5) When all the publishers and subscribers in the system have registered with us,
 # then we are in a ready state and will respond with a true to is_ready method. Until then
 # it will be false.
+
+# import the needed packages
+import os     # for OS functions
+import sys    # for syspath and system exception
+import time   # for sleep
+import argparse # for argument parsing
+import configparser # for configuration parsing
+import logging # for logging. Use it in place of print statements.
+import random # needed in the topic selection using random numbers
+
+
+# Import our topic selector. Feel free to use alternate way to
+# get your topics of interest
+from topic_selector import TopicSelector
+
+# Now import our CS6381 Middleware
+from CS6381_MW.DiscoveryMW import DiscoveryMW
+
+##################################
+#       DiscoveryAppln class
+##################################
+class DiscoveryAppln ():
+
+  ########################################
+  # constructor
+  ########################################
+  def __init__ (self, logger):
