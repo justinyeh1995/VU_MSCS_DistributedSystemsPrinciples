@@ -45,6 +45,7 @@ class DiscoveryMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
+    self.registry = {} # store {"id": "name+url", "role":"publiser/subscriber", "topiclists": "topicstring"}
 
   ########################################
   # configure/initialize
