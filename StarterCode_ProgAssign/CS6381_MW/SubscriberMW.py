@@ -272,12 +272,12 @@ class SubscriberMW ():
             
             
   #################################################################
-  # disseminate the data on our sub socket
+  # subscribe the data on our sub socket
   #################################################################
-  def disseminate (self, data):
+  def subscribe (self):
     try:
-      self.logger.debug ("SubscriberMW::disseminate - {}".format (data))
-      self.sub.send_string (data)
+      self.logger.debug ("SubscriberMW::subscribe - {}".format (data))
+      message = self.sub.recv_string()
 
     except Exception as e:
       raise e

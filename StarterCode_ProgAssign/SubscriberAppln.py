@@ -54,7 +54,7 @@ class SubscriberAppln ():
   def __init__ (self, logger):
     self.iters = None   # number of iterations of sublication
     self.name = None # our name (some unique name)
-    self.topiclist = None # the different topics that we sublish on
+    self.topiclist = None # the different topics that we subscribe on
     self.lookup = None # one of the diff ways we do lookup
     self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
@@ -72,7 +72,6 @@ class SubscriberAppln ():
     
       # initialize our variables
       self.name = args.name # our name
-      self.iters = args.iters  # num of iterations
 
       # Now, get the configuration object
       self.logger.debug ("SubscriberAppln::configure - parsing config.ini")
@@ -120,13 +119,13 @@ class SubscriberAppln ():
         time.sleep (5)  # sleep between calls so that we don't make excessive calls
         self.logger.debug ("SubscriberAppln::driver - check again if are ready to go")
 
-      # Now disseminate
-      ts = TopicSelector ()
-      for i in range (self.iters):
-        for topic in self.topiclist:
-          dissemination_data = topic + ":" + ts.gen_publication (topic)
-          self.mw_obj.disseminate (dissemination_data)
-        
+      self.logger.debug ("SubscriberAppln::driver - ready to go")
+
+      while True:
+          time.sleep (5)
+
+      #self.mw_obj.event_loop()  
+
     except Exception as e:
       raise e
 
@@ -144,7 +143,6 @@ class SubscriberAppln ():
       self.logger.debug ("     Lookup: {}".format (self.lookup))
       self.logger.debug ("     Dissemination: {}".format (self.dissemination))
       self.logger.debug ("     TopicList: {}".format (self.topiclist))
-      self.logger.debug ("     Iterations: {}".format (self.iters))
       self.logger.debug ("**********************************")
 
     except Exception as e:
