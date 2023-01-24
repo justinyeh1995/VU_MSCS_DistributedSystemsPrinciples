@@ -114,6 +114,8 @@ class DiscoveryMW ():
       self.logger.debug ("DiscoveryMW::Storing Publisher's information")
       self.registry[name] = {"url": url, "role": role, "topiclist": topiclist}
 
+      self.logger.debug ("DiscoveryMW::Registration info")
+
     except Exception as e:
       raise e
 
