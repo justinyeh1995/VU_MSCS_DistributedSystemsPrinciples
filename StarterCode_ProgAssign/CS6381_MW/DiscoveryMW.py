@@ -41,7 +41,7 @@ class DiscoveryMW ():
   ########################################
   def __init__ (self, logger):
     self.logger = logger  # internal logger for print statements
-    self.req = None # will be a ZMQ REQ socket to talk to Discovery service
+    self.rep = None # will be a ZMQ REQ socket to talk to Discovery service
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
@@ -64,34 +64,18 @@ class DiscoveryMW ():
       # Next get the ZMQ context
       self.logger.debug ("DiscoveryMW::configure - obtain ZMQ context")
       context = zmq.Context ()  # returns a singleton object
-
-      # get the ZMQ poller object
-      self.logger.debug ("DiscoveryMW::configure - obtain the poller")
-      self.poller = zmq.Poller ()
       
       # Now acquire the REQ socket
-      self.logger.debug ("DiscoveryMW::configure - obtain REQ socket")
-      self.req = context.socket (zmq.REQ)
-
-      # register the REQ socket for incoming events
-      self.logger.debug ("DiscoveryMW::configure - register the REQ socket for incoming replies")
-      self.poller.register (self.req, zmq.POLLIN)
+      self.logger.debug ("DiscoveryMW::configure - obtain REP socket")
+      self.rep = context.socket (zmq.REP)
       
-      # Now connect ourselves to the discovery service. Recall that the IP/port were
-      # supplied in our argument parsing.
-      self.logger.debug ("DiscoveryMW::configure - connect to Discovery service")
-      # For these assignments we use TCP. The connect string is made up of
-      # tcp:// followed by IP addr:port number.
-      connect_str = "tcp://" + args.discovery
-      self.req.connect (connect_str)
-      
-      # Since we are the publisher, the best practice as suggested in ZMQ is for us to
-      # "bind" to the PUB socket
-      self.logger.debug ("DiscoveryMW::configure - bind to the pub socket")
+      # Since we are the "server", the best practice as suggested in ZMQ is for us to
+      # "bind" to the REP socket
+      self.logger.debug ("DiscoveryMW::configure - bind to the rep socket")
       # note that we publish on any interface hence the * followed by port number.
       # We always use TCP as the transport mechanism (at least for these assignments)
       bind_string = "tcp://*:" + self.port
-      self.pub.bind (bind_string)
+      self.rep.bind (bind_string)
       
     except Exception as e:
       raise e
@@ -99,7 +83,8 @@ class DiscoveryMW ():
   ########################################
   # Look Up with the discovery service
   ########################################
-  def lookup (self, name, topiclist):
+  def lookup (self):
+    '''look up service '''
     try:
       # Here we initialize any internal variables
       self.logger.debug ("DiscoveryMW::Providing Look Up service")
@@ -107,11 +92,37 @@ class DiscoveryMW ():
     except Exception as e:
       raise e
 
+
   ########################################
-  # register with the discovery service
+  # save info to storage 
   ########################################
-  def register (self, name, topiclist):
-    ''' register the appln with the discovery service '''
+  def register (self, request):
+    '''handle registrations'''
+    try:
+      self.logger.debug ("DiscoveryMW::Providing Registration service")
+      pubinfo = request.register_req
+      uid = pubinfo.id
+      #timestamp = pubinfo.timestamp
+      role = pubinfo.role
+      topiclist = pubinfo.topiclist
+      
+      self.logger.debug ("DiscoveryMW::Parsing Discovery Request")
+      name, ip, port = uid.split(":")
+      url = ip + ":" + port
+      topiclist = topiclist.split(",")
+
+      self.logger.debug ("DiscoveryMW::Storing Publisher's information")
+      self.registry[name] = {"url": url, "role": role, "topiclist": topiclist}
+
+    except Exception as e:
+      raise e
+
+
+  ########################################
+  # register response: success
+  ########################################
+  def gen_register_resp (self):
+    ''' handle the discovery request '''
 
     try:
       self.logger.debug ("DiscoveryMW::registering")
@@ -124,44 +135,37 @@ class DiscoveryMW ():
       
       # first build a register req message
       self.logger.debug ("DiscoveryMW::register - populate the nested register req")
-      register_req = discovery_pb2.RegisterReq ()  # allocate 
-      register_req.role = "publisher"  # this will change to an enum later on
-      comma_sep_topics = ','.join (topiclist) # converts list into comma sep string
-      register_req.topiclist = comma_sep_topics   # fill up the topic list
-      unique_id = name + ":" + self.addr + ":" + self.port
-      register_req.id = unique_id  # fill up the ID
-      self.logger.debug ("DiscoveryMW::register - done populating nested RegisterReq")
+      register_resp = discovery_pb2.RegisterResp ()  # allocate 
+      register_resp.result = "success"  # this will change to an enum later on
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::register - build the outer DiscoveryReq message")
-      disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.REGISTER
+      disc_rep = discovery_pb2.DiscoveryResp ()
+      disc_rep.msg_type = discovery_pb2.REGISTER
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
-      disc_req.register_req.CopyFrom (register_req)
+      disc_rep.register_resp.CopyFrom (register_resp)
       self.logger.debug ("DiscoveryMW::register - done building the outer message")
       
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
       # a real string
-      buf2send = disc_req.SerializeToString ()
+      buf2send = disc_rep.SerializeToString ()
       self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
 
       # now send this to our discovery service
-      self.logger.debug ("DiscoveryMW::register - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      #self.logger.debug ("DiscoveryMW::register - send stringified buffer to Discovery service")
+      #self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
 
-      # now go to our event loop to receive a response to this request
-      self.logger.debug ("DiscoveryMW::register - now wait for reply")
-      return self.event_loop ()
-      
+      return buf2send
     
     except Exception as e:
       raise e
 
+
   ########################################
-  # check if the discovery service gives us a green signal to proceed
+  # is_ready response: ready
   ########################################
-  def ready (self):
+  def gen_ready_resp (self):
     ''' register the appln with the discovery service '''
 
     try:
@@ -175,34 +179,31 @@ class DiscoveryMW ():
       
       # first build a IsReady message
       self.logger.debug ("DiscoveryMW::is_ready - populate the nested IsReady msg")
-      isready_msg = discovery_pb2.IsReadyReq ()  # allocate 
-      # actually, there is nothing inside that msg declaration.
-      self.logger.debug ("DiscoveryMW::is_ready - done populating nested IsReady msg")
+      isready_msg = discovery_pb2.IsReadyResp ()  # allocate 
+      isready_msg.reply = 1 # should be a boolean value here
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::is_ready - build the outer DiscoveryReq message")
-      disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.ISREADY
+      disc_resp = discovery_pb2.DiscoveryResp ()
+      disc_resp.msg_type = discovery_pb2.ISREADY
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
-      disc_req.is_ready.CopyFrom (isready_msg)
+      disc_resp.is_ready.CopyFrom (isready_msg)
       self.logger.debug ("DiscoveryMW::is_ready - done building the outer message")
       
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
       # a real string
-      buf2send = disc_req.SerializeToString ()
+      buf2send = disc_resp.SerializeToString ()
       self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
 
       # now send this to our discovery service
-      self.logger.debug ("DiscoveryMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
-      
-      # now go to our event loop to receive a response to this request
-      self.logger.debug ("DiscoveryMW::is_ready - now wait for reply")
-      return self.event_loop ()
+      #self.logger.debug ("DiscoveryMW::is_ready - send stringified buffer to Discovery service")
+      #self.rep.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      return buf2send
       
     except Exception as e:
       raise e
+
 
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
@@ -213,49 +214,53 @@ class DiscoveryMW ():
       self.logger.debug ("DiscoveryMW::event_loop - run the event loop")
 
       while True:
-        # poll for events. We give it an infinite timeout.
-        # The return value is a socket to event mask mapping
-        events = dict (self.poller.poll ())
       
         # the only socket that should be enabled, if at all, is our REQ socket.
-        if self.req in events:  # this is the only socket on which we should be receiving replies
-          # handle the incoming reply and return the result
-          return self.handle_reply ()
+        bytesMsg = self.rep.recv() 
+        print(bytesMsg)
+        resp = self.handle_request (bytesMsg)
+        # now send this to our discovery service
+        self.logger.debug ("DiscoveryMW:: send stringified buffer back to publishers/subscribers")
+        self.rep.send (resp)  # we use the "send" method of ZMQ that sends the bytes
+        ###########
+        ## TO-DO ##
+        ###########
+        # make an upcall here???
 
     except Exception as e:
       raise e
-            
+
+
   #################################################################
   # handle an incoming reply
   #################################################################
-  def handle_reply (self):
+  def handle_request (self, bytesMsg):
 
     try:
       self.logger.debug ("DiscoveryMW::handle_reply")
 
-      # let us first receive all the bytes
-      bytesRcvd = self.req.recv ()
-
       # now use protobuf to deserialize the bytes
-      disc_resp = discovery_pb2.DiscoveryResp ()
-      disc_resp.ParseFromString (bytesRcvd)
+      request = discovery_pb2.DiscoveryReq ()
+      request.ParseFromString (bytesMsg)
 
       # depending on the message type, the remaining
       # contents of the msg will differ
 
-      # TO-DO
-      # When your proto file is modified, some of this here
-      # will get modified.
-      if (disc_resp.msg_type == discovery_pb2.REGISTER):
+      if (request.msg_type == discovery_pb2.REGISTER):
+        # registraions
+        self.register(request)
         # this is a response to register message
-        return disc_resp.register_resp.result
-      elif (disc_resp.msg_type == discovery_pb2.ISREADY):
+        resp = self.gen_register_resp()
+        return resp
+      elif (request.msg_type == discovery_pb2.ISREADY):
         # this is a response to is ready request
-        return disc_resp.is_ready.reply
+        resp = self.gen_ready_resp()
+        return resp
       else: # anything else is unrecognizable by this object
         # raise an exception here
-        raise Exception ("Unrecognized response message")
+        raise Exception ("Unrecognized request message")
 
     except Exception as e:
       raise e
-            
+
+
