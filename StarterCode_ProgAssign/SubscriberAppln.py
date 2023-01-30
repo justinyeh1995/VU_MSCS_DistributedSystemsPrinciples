@@ -79,7 +79,7 @@ class SubscriberAppln ():
       config.read (args.config)
       self.lookup = config["Discovery"]["Strategy"]
       self.dissemination = config["Dissemination"]["Strategy"]
-    
+
       # Now get our topic list of interest
       self.logger.debug ("SubscriberAppln::configure - selecting our topic list")
       ts = TopicSelector ()
@@ -121,8 +121,13 @@ class SubscriberAppln ():
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
+      # pass each topic to mw
+      for topic in self.topiclist:
+          self.mw_obj.lookup_topic(topic)
+
       while True:
           time.sleep (5)
+          self.mw_obj.subscribe()
 
       #self.mw_obj.event_loop()  
 

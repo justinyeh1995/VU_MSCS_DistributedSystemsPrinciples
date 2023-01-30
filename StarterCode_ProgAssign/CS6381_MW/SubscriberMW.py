@@ -215,6 +215,31 @@ class SubscriberMW ():
     except Exception as e:
       raise e
 
+
+  ######################
+  ## Look Up by Topic ##
+  ######################
+  def lookup_topic(self, topicfilter):
+    self.sub.setsockopt(zmq.SUBSCRIBE, topicfilter)
+    lookup_msg = discovery_pb2.LookupPubByTopicReq ()
+    lookup_msg.topiclist = topicfilter
+    disc_req = discovery_pb2.DiscoveryReq ()
+    disc_req.msg_type = discovery_pb2.LOOKUP_PUB_BY_TOPIC
+    # It was observed that we cannot directly assign the nested field here.
+    # A way around is to use the CopyFrom method as shown
+    disc_req.topic.CopyFrom (lookup_msg)
+    self.logger.debug ("SubscriberMW::topic - done building the outer message")
+
+    # now send this to our discovery service
+    self.logger.debug ("SubscriberMW::topic - send stringified buffer to Discovery service")
+    self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+    publist = self.event_loop()
+
+    for pub in publist:
+      connect_str = "tcp://" + pub
+      self.req.connect (connect_str)
+    
+
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
   #################################################################
@@ -263,6 +288,9 @@ class SubscriberMW ():
       elif (disc_resp.msg_type == discovery_pb2.ISREADY):
         # this is a response to is ready request
         return disc_resp.is_ready.reply
+      elif (disc_resp.msg_type == discovery_pb2.LOOKUP_PUB_BY_TOPIC):
+        # this is a response to is ready request
+        return disc_resp.topic.publist # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized response message")
@@ -278,6 +306,7 @@ class SubscriberMW ():
     try:
       self.logger.debug ("SubscriberMW::subscribe - {}".format (data))
       message = self.sub.recv_string()
+      print(message)
 
     except Exception as e:
       raise e
