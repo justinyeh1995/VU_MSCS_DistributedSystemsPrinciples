@@ -135,18 +135,20 @@ class SubscriberMW ():
       
       # first build a register req message
       self.logger.debug ("SubscriberMW::register - populate the nested register req")
+      registrant_info = discovery_pb2.RegistrantInfo ()
+      registrant_info.id = name
+
       register_req = discovery_pb2.RegisterReq ()  # allocate 
-      register_req.role = "subscriber"  # this will change to an enum later on
-      comma_sep_topics = ','.join (topiclist) # converts list into comma sep string
-      register_req.topiclist = comma_sep_topics   # fill up the topic list
-      unique_id = name + ":" + self.addr + ":" + self.port
-      register_req.id = unique_id  # fill up the ID
+      register_req.role = discovery_pb2.ROLE_SUBSCRIBER # this will change to an enum later on
+      register_req.info.CopyFrom (registrant_info)
+      register_req.topiclist.extend (topiclist)
+
       self.logger.debug ("SubscriberMW::register - done populating nested RegisterReq")
 
       # Build the outer layer Discovery Message
       self.logger.debug ("SubscriberMW::register - build the outer DiscoveryReq message")
       disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.REGISTER
+      disc_req.msg_type = discovery_pb2.TYPE_REGISTER
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
       disc_req.register_req.CopyFrom (register_req)
@@ -193,10 +195,10 @@ class SubscriberMW ():
       # Build the outer layer Discovery Message
       self.logger.debug ("SubscriberMW::is_ready - build the outer DiscoveryReq message")
       disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.ISREADY
+      disc_req.msg_type = discovery_pb2.TYPE_ISREADY
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
-      disc_req.is_ready.CopyFrom (isready_msg)
+      disc_req.isready_req.CopyFrom (isready_msg)
       self.logger.debug ("SubscriberMW::is_ready - done building the outer message")
       
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
@@ -219,26 +221,39 @@ class SubscriberMW ():
   ######################
   ## Look Up by Topic ##
   ######################
-  def lookup_topic(self, topicfilter):
-    self.sub.setsockopt(zmq.SUBSCRIBE, topicfilter)
-    lookup_msg = discovery_pb2.LookupPubByTopicReq ()
-    lookup_msg.topiclist = topicfilter
-    disc_req = discovery_pb2.DiscoveryReq ()
-    disc_req.msg_type = discovery_pb2.LOOKUP_PUB_BY_TOPIC
-    # It was observed that we cannot directly assign the nested field here.
-    # A way around is to use the CopyFrom method as shown
-    disc_req.topic.CopyFrom (lookup_msg)
-    self.logger.debug ("SubscriberMW::topic - done building the outer message")
+  def lookup_topic(self, topiclist):
+    try:
+      lookup_msg = discovery_pb2.LookupPubByTopicReq ()
+      lookup_msg.topiclist.extend(topiclist)
 
-    # now send this to our discovery service
-    self.logger.debug ("SubscriberMW::topic - send stringified buffer to Discovery service")
-    self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
-    publist = self.event_loop()
+      disc_req = discovery_pb2.DiscoveryReq ()
+      disc_req.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC
+      # It was observed that we cannot directly assign the nested field here.
+      # A way around is to use the CopyFrom method as shown
+      disc_req.lookup_req.CopyFrom (lookup_msg)
+      self.logger.debug ("SubscriberMW::lookup - done building the outer message")
 
-    for pub in publist:
-      connect_str = "tcp://" + pub
-      self.req.connect (connect_str)
+      # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
+      # a real string
+      buf2send = disc_req.SerializeToString ()
+      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
+
+      # now send this to our discovery service
+      self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
+      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+
+      infoList = self.event_loop()
+      pubList = infoList.publishers
+
+      for info in pubList:
+        connect_str = "tcp://" + info.addr + ":" + str(info.port)
+        self.sub.connect (connect_str)
     
+      for topic in topiclist:
+        self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
+      
+    except Exception as e:
+      raise e
 
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
@@ -282,15 +297,15 @@ class SubscriberMW ():
       # TO-DO
       # When your proto file is modified, some of this here
       # will get modified.
-      if (disc_resp.msg_type == discovery_pb2.REGISTER):
+      if (disc_resp.msg_type == discovery_pb2.TYPE_REGISTER):
         # this is a response to register message
-        return disc_resp.register_resp.result
-      elif (disc_resp.msg_type == discovery_pb2.ISREADY):
+        return disc_resp.register_resp.status
+      elif (disc_resp.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        return disc_resp.is_ready.reply
-      elif (disc_resp.msg_type == discovery_pb2.LOOKUP_PUB_BY_TOPIC):
+        return disc_resp.isready_resp.status
+      elif (disc_resp.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        return disc_resp.topic.publist # relations with proto definitions
+        return disc_resp.lookup_resp # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized response message")
@@ -304,7 +319,7 @@ class SubscriberMW ():
   #################################################################
   def subscribe (self):
     try:
-      self.logger.debug ("SubscriberMW::subscribe - {}".format (data))
+      self.logger.debug ("SubscriberMW::subscribe")
       message = self.sub.recv_string()
       print(message)
 

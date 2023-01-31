@@ -25,6 +25,7 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
+import collections
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -45,7 +46,8 @@ class DiscoveryMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
-    self.registry = {} # store {"id": "name+url", "role":"publiser/subscriber", "topiclists": "topicstring"}
+    self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
+
 
   ########################################
   # configure/initialize
@@ -81,40 +83,41 @@ class DiscoveryMW ():
       raise e
 
   ########################################
-  # Look Up with the discovery service
-  ########################################
-  def lookup (self):
-    '''look up service '''
-    try:
-      # Here we initialize any internal variables
-      self.logger.debug ("DiscoveryMW::Providing Look Up service")
-
-    except Exception as e:
-      raise e
-
-
-  ########################################
   # save info to storage 
   ########################################
   def register (self, request):
     '''handle registrations'''
     try:
       self.logger.debug ("DiscoveryMW::Providing Registration service")
-      pubinfo = request.register_req
-      uid = pubinfo.id
-      #timestamp = pubinfo.timestamp
-      role = pubinfo.role
-      topiclist = pubinfo.topiclist
-      
-      self.logger.debug ("DiscoveryMW::Parsing Discovery Request")
-      name, ip, port = uid.split(":")
-      url = ip + ":" + port
-      topiclist = topiclist.split(",")
 
-      self.logger.debug ("DiscoveryMW::Storing Publisher's information")
-      self.registry[name] = {"url": url, "role": role, "topiclist": topiclist}
+      req_info = request.register_req
+    
+      registrant = req_info.info
+      role = req_info.role
+
+      if role == discovery_pb2.ROLE_PUBLISHER:
+        
+        self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
+        uid = registrant.id
+        addr = registrant.addr 
+        port = registrant.port
+        ts = registrant.timestamp
+        topiclist = req_info.topiclist
+
+        self.logger.debug ("DiscoveryMW::Storing Publisher's information")
+        self.registry[uid] = { "role": "pub",
+                                "addr": addr, 
+                                "port": port,  
+                                "timestamp": ts, 
+                                "topiclist": topiclist}
+
+      elif role == discovery_pb2.ROLE_SUBSCRIBER:
+        self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
+        uid = registrant.id
+        self.registry[uid] = {"role": "sub"}
 
       self.logger.debug ("DiscoveryMW::Registration info")
+      print(self.registry)
 
     except Exception as e:
       raise e
@@ -138,12 +141,12 @@ class DiscoveryMW ():
       # first build a register req message
       self.logger.debug ("DiscoveryMW::register - populate the nested register req")
       register_resp = discovery_pb2.RegisterResp ()  # allocate 
-      register_resp.result = "success"  # this will change to an enum later on
+      register_resp.status = discovery_pb2.STATUS_SUCCESS  # this will change to an enum later on
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::register - build the outer DiscoveryReq message")
       disc_rep = discovery_pb2.DiscoveryResp ()
-      disc_rep.msg_type = discovery_pb2.REGISTER
+      disc_rep.msg_type = discovery_pb2.TYPE_REGISTER
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
       disc_rep.register_resp.CopyFrom (register_resp)
@@ -182,15 +185,15 @@ class DiscoveryMW ():
       # first build a IsReady message
       self.logger.debug ("DiscoveryMW::is_ready - populate the nested IsReady msg")
       isready_msg = discovery_pb2.IsReadyResp ()  # allocate 
-      isready_msg.reply = 1 # should be a boolean value here
+      isready_msg.status = discovery_pb2.STATUS_SUCCESS # should be a boolean value here
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::is_ready - build the outer DiscoveryReq message")
       disc_resp = discovery_pb2.DiscoveryResp ()
-      disc_resp.msg_type = discovery_pb2.ISREADY
+      disc_resp.msg_type = discovery_pb2.TYPE_ISREADY
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
-      disc_resp.is_ready.CopyFrom (isready_msg)
+      disc_resp.isready_resp.CopyFrom (isready_msg)
       self.logger.debug ("DiscoveryMW::is_ready - done building the outer message")
       
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
@@ -206,7 +209,53 @@ class DiscoveryMW ():
     except Exception as e:
       raise e
 
+  ################
+  ##
+  ################
+  def gen_lookup_resp(self, topiclist):
+    try:
+      self.logger.debug ("DiscoveryMW::looking up publishers with specific topics")
 
+      # we do a similar kind of serialization as we did in the register
+      # message but much simpler, and then send the request to
+      # the discovery service
+    
+      # The following code shows serialization using the protobuf generated code.
+      
+      # first build a IsReady message
+      self.logger.debug ("DiscoveryMW::lookup - populate the nested Lookup msg")
+      topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
+      for name, detail in self.registry.items():
+        if detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist):
+          info = discovery_pb2.RegistrantInfo ()
+          info.id = name
+          info.addr = detail["addr"]
+          info.port = detail["port"]
+          info.timestamp = detail["timestamp"]
+          topic_msg.publishers.append(info)
+
+      # Build the outer layer Discovery Message
+      self.logger.debug ("DiscoveryMW::lookup - build the outer DiscoveryReq message")
+      disc_resp = discovery_pb2.DiscoveryResp ()
+      disc_resp.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC
+      # It was observed that we cannot directly assign the nested field here.
+      # A way around is to use the CopyFrom method as shown
+      disc_resp.lookup_resp.CopyFrom (topic_msg)
+      self.logger.debug ("DiscoveryMW::lookup - done building the outer message")
+      
+      # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
+      # a real string
+      buf2send = disc_resp.SerializeToString ()
+      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
+
+      # now send this to our discovery service
+      #self.logger.debug ("DiscoveryMW::is_ready - send stringified buffer to Discovery service")
+      #self.rep.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      return buf2send
+      
+    except Exception as e:
+      raise e
+  
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
   #################################################################
@@ -248,16 +297,20 @@ class DiscoveryMW ():
       # depending on the message type, the remaining
       # contents of the msg will differ
 
-      if (request.msg_type == discovery_pb2.REGISTER):
+      if (request.msg_type == discovery_pb2.TYPE_REGISTER):
         # registraions
         self.register(request)
         # this is a response to register message
         resp = self.gen_register_resp()
         return resp
-      elif (request.msg_type == discovery_pb2.ISREADY):
+      elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
         resp = self.gen_ready_resp()
         return resp
+      elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
+        # this is a response to is ready request
+        resp = self.gen_lookup_resp(request.lookup_req.topiclist)
+        return resp # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")

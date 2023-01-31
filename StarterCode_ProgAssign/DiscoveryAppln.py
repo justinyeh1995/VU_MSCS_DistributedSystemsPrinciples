@@ -37,7 +37,7 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import random # needed in the topic selection using random numbers
-
+import collections
 
 # Import our topic selector. Feel free to use alternate way to
 # get your topics of interest
@@ -57,6 +57,7 @@ class DiscoveryAppln ():
   def __init__ (self, logger):
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
+    self.registry = collections.defaultdict(list) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
 
   ########################################
   # configure/initialize

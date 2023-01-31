@@ -126,18 +126,24 @@ class PublisherMW ():
       
       # first build a register req message
       self.logger.debug ("PublisherMW::register - populate the nested register req")
+
+      registrant_info = discovery_pb2.RegistrantInfo ()
+      registrant_info.id = name
+
+      registrant_info.addr = self.addr 
+      registrant_info.port = int(self.port)
+      registrant_info.timestamp = time.time()
+
       register_req = discovery_pb2.RegisterReq ()  # allocate 
-      register_req.role = "publisher"  # this will change to an enum later on
-      comma_sep_topics = ','.join (topiclist) # converts list into comma sep string
-      register_req.topiclist = comma_sep_topics   # fill up the topic list
-      unique_id = name + ":" + self.addr + ":" + self.port
-      register_req.id = unique_id  # fill up the ID
+      register_req.role = discovery_pb2.ROLE_PUBLISHER # this will change to an enum later on
+      register_req.info.CopyFrom (registrant_info)
+      register_req.topiclist.extend (topiclist)
       self.logger.debug ("PublisherMW::register - done populating nested RegisterReq")
 
       # Build the outer layer Discovery Message
       self.logger.debug ("PublisherMW::register - build the outer DiscoveryReq message")
       disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.REGISTER
+      disc_req.msg_type = discovery_pb2.TYPE_REGISTER
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
       disc_req.register_req.CopyFrom (register_req)
@@ -184,10 +190,10 @@ class PublisherMW ():
       # Build the outer layer Discovery Message
       self.logger.debug ("PublisherMW::is_ready - build the outer DiscoveryReq message")
       disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.ISREADY
+      disc_req.msg_type = discovery_pb2.TYPE_ISREADY
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
-      disc_req.is_ready.CopyFrom (isready_msg)
+      disc_req.isready_req.CopyFrom (isready_msg)
       self.logger.debug ("PublisherMW::is_ready - done building the outer message")
       
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
@@ -248,12 +254,12 @@ class PublisherMW ():
       # TO-DO
       # When your proto file is modified, some of this here
       # will get modified.
-      if (disc_resp.msg_type == discovery_pb2.REGISTER):
+      if (disc_resp.msg_type == discovery_pb2.TYPE_REGISTER):
         # this is a response to register message
-        return disc_resp.register_resp.result
-      elif (disc_resp.msg_type == discovery_pb2.ISREADY):
+        return disc_resp.register_resp.status
+      elif (disc_resp.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        return disc_resp.is_ready.reply
+        return disc_resp.isready_resp.status
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized response message")

@@ -122,8 +122,7 @@ class SubscriberAppln ():
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
       # pass each topic to mw
-      for topic in self.topiclist:
-          self.mw_obj.lookup_topic(topic)
+      self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
           time.sleep (5)
