@@ -60,11 +60,23 @@ from topic_selector import TopicSelector
 from CS6381_MW.PublisherMW import PublisherMW
 
 # import any other packages you need.
+from enum import Enum  # for an enumeration we are using to describe what state we are in
 
 ##################################
 #       PublisherAppln class
 ##################################
 class PublisherAppln ():
+
+  # these are the states through which our publisher appln object goes thru.
+  # We maintain the state so we know where we are in the lifecycle and then
+  # take decisions accordingly
+  class State (Enum):
+    INITIALIZE = 0,
+    CONFIGURE = 1,
+    REGISTER = 2,
+    ISREADY = 3,
+    DISSEMINATE = 4,
+    COMPLETED = 5
 
   ########################################
   # constructor
@@ -77,6 +89,8 @@ class PublisherAppln ():
     self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
+    self.state = self.State.INITIALIZE # state that are we in
+    self.num_topics = None # total num of topics we publish
 
   ########################################
   # configure/initialize
@@ -126,6 +140,12 @@ class PublisherAppln ():
 
       # dump our contents (debugging purposes)
       self.dump ()
+      # First ask our middleware to keep a handle to us to make upcalls.
+      # This is related to upcalls. By passing a pointer to ourselves, the
+      # middleware will keep track of it and any time something must
+      # be handled by the application level, invoke an upcall.
+      self.logger.debug ("PublisherAppln::driver - upcall handle")
+      #self.mw_obj.set_upcall_handle (self)
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("PublisherAppln::driver - register with the discovery service")
@@ -134,7 +154,8 @@ class PublisherAppln ():
 
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("PublisherAppln::driver - check if are ready to go")
-      while (not self.mw_obj.is_ready ()):
+      print(self.mw_obj.is_ready ())
+      while (self.mw_obj.is_ready () != 1):
         time.sleep (5)  # sleep between calls so that we don't make excessive calls
         self.logger.debug ("PublisherAppln::driver - check again if are ready to go")
 

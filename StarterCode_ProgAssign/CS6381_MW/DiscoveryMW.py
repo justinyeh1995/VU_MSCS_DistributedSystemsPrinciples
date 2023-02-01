@@ -47,6 +47,8 @@ class DiscoveryMW ():
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
     self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
+    self.pubCnt = 0
+    self.subCnt = 0
 
 
   ########################################
@@ -78,6 +80,10 @@ class DiscoveryMW ():
       # We always use TCP as the transport mechanism (at least for these assignments)
       bind_string = "tcp://*:" + self.port
       self.rep.bind (bind_string)
+
+      # set the number of machines participating
+      self.pubCnt = args.pubCnt
+      self.subCnt = args.subCnt
       
     except Exception as e:
       raise e
@@ -97,6 +103,8 @@ class DiscoveryMW ():
 
       if role == discovery_pb2.ROLE_PUBLISHER:
         
+        self.pubCnt -= 1
+        
         self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
         uid = registrant.id
         addr = registrant.addr 
@@ -112,6 +120,9 @@ class DiscoveryMW ():
                                 "topiclist": topiclist}
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
+        
+        self.subCnt -= 1
+
         self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
         uid = registrant.id
         self.registry[uid] = {"role": "sub"}
@@ -185,7 +196,11 @@ class DiscoveryMW ():
       # first build a IsReady message
       self.logger.debug ("DiscoveryMW::is_ready - populate the nested IsReady msg")
       isready_msg = discovery_pb2.IsReadyResp ()  # allocate 
-      isready_msg.status = discovery_pb2.STATUS_SUCCESS # should be a boolean value here
+
+      if self.pubCnt <= 0 and self.subCnt <= 0:
+        isready_msg.status = discovery_pb2.STATUS_SUCCESS  # this will change to an enum later on
+      else:
+        isready_msg.status = discovery_pb2.STATUS_UNKNOWN#STATUS_FAILURE # this will change to an enum later on
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::is_ready - build the outer DiscoveryReq message")
