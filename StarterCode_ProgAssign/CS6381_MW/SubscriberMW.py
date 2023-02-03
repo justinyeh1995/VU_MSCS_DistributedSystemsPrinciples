@@ -245,7 +245,6 @@ class SubscriberMW ():
 
       infoList = self.event_loop()
       pubList = infoList.publishers
-      self.logger.debug ("Retrieved PubList = {}".format (pubList))
 
       if not pubList:
           return False # return to Appln layer and lookup again
