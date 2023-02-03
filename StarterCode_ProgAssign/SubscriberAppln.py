@@ -121,11 +121,12 @@ class SubscriberAppln ():
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
-      # pass each topic to mw
-      self.mw_obj.lookup_topic (self.topiclist)
+      while (not self.mw_obj.lookup_topic (self.topiclist)):
+        self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
 
       while True:
-          time.sleep (5)
+          time.sleep (1)
+          # pass each topic to mw
           self.mw_obj.subscribe()
 
       #self.mw_obj.event_loop()  

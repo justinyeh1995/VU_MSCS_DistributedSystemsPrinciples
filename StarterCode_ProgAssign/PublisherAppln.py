@@ -154,7 +154,7 @@ class PublisherAppln ():
 
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("PublisherAppln::driver - check if are ready to go")
-      print(self.mw_obj.is_ready ())
+      #print(self.mw_obj.is_ready ())
       while (self.mw_obj.is_ready () != 1):
         time.sleep (5)  # sleep between calls so that we don't make excessive calls
         self.logger.debug ("PublisherAppln::driver - check again if are ready to go")
@@ -167,8 +167,10 @@ class PublisherAppln ():
         # Here, we choose to disseminate on all topics that we publish.  Also, we don't care
         # about their values. But in future assignments, this can change.
         for topic in self.topiclist:
-          dissemination_data = topic + ":" + ts.gen_publication (topic)
+          dissemination_data = topic + ":" + ts.gen_publication (topic) 
           self.mw_obj.disseminate (dissemination_data)
+        # avoid transmission too frequently
+        time.sleep (1)
         
     except Exception as e:
       raise e

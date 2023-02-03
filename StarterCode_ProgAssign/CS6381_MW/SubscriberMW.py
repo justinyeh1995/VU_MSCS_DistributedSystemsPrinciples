@@ -43,6 +43,7 @@ import zmq  # ZMQ sockets
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
+import time
 
 # import any other packages you need.
 
@@ -221,7 +222,7 @@ class SubscriberMW ():
   ######################
   ## Look Up by Topic ##
   ######################
-  def lookup_topic(self, topiclist):
+  def lookup_topic(self, topiclist) -> bool:
     try:
       lookup_msg = discovery_pb2.LookupPubByTopicReq ()
       lookup_msg.topiclist.extend(topiclist)
@@ -244,14 +245,20 @@ class SubscriberMW ():
 
       infoList = self.event_loop()
       pubList = infoList.publishers
+      self.logger.debug ("Retrieved PubList = {}".format (pubList))
+
+      if not pubList:
+          return False # return to Appln layer and lookup again
+
+      for topic in topiclist:
+        self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
 
       for info in pubList:
         connect_str = "tcp://" + info.addr + ":" + str(info.port)
         self.sub.connect (connect_str)
-    
-      for topic in topiclist:
-        self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
       
+      return True
+
     except Exception as e:
       raise e
 
@@ -321,7 +328,9 @@ class SubscriberMW ():
     try:
       self.logger.debug ("SubscriberMW::subscribe")
       message = self.sub.recv_string()
-      print(message)
+      topic, content, dissemTime = message.split(":")
+      self.logger.debug ("Latency = {}".format (time.time() - float(dissemTime)))
+      self.logger.debug ("Retrieved Content = {}".format (message))
 
     except Exception as e:
       raise e

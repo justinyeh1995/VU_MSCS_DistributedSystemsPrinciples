@@ -273,6 +273,7 @@ class PublisherMW ():
   #################################################################
   def disseminate (self, data):
     try:
+      data += ":" + str(time.time())
       self.logger.debug ("PublisherMW::disseminate - {}".format (data))
       self.pub.send_string (data)
 
