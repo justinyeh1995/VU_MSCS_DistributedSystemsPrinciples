@@ -102,14 +102,6 @@ class SubscriberMW ():
       connect_str = "tcp://" + args.discovery
       self.req.connect (connect_str)
       
-      # Since we are the sublisher, the best practice as suggested in ZMQ is for us to
-      # "bind" to the SUB socket
-      self.logger.debug ("SubscriberMW::configure - bind to the sub socket")
-      # note that we sublish on any interface hence the * followed by port number.
-      # We always use TCP as the transport mechanism (at least for these assignments)
-      bind_string = "tcp://*:" + self.port
-      self.sub.bind (bind_string)
-      
     except Exception as e:
       raise e
 

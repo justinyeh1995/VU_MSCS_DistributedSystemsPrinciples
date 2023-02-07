@@ -121,8 +121,10 @@ class SubscriberAppln ():
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
-      while (not self.mw_obj.lookup_topic (self.topiclist)):
-        self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
+      #while (not self.mw_obj.lookup_topic (self.topiclist)):
+      #  self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
+
+      self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
           time.sleep (1)
