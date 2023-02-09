@@ -89,9 +89,8 @@ class PublisherAppln ():
     
       # Now get our topic list of interest
       self.logger.debug ("PublisherAppln::configure - selecting our topic list")
-      self.topiclist = ["weather", "humidity", "airquality", "light", \
-                          "pressure", "temperature", "sound", "altitude", \
-                          "location"]
+      ts = TopicSelector ()
+      self.topiclist = ts.interest (num = 9)  # let topic selector give us all the topics
 
       # Now setup up our underlying middleware object to which we delegate
       # everything
@@ -112,6 +111,10 @@ class PublisherAppln ():
 
     try:
       self.logger.debug ("PublisherAppln::driver")
+
+      if self.dissemination == "Direct":
+        self.logger.debug ("BrokerAppln:: Not needed here")  
+        return
 
       # dump our contents (debugging purposes)
       self.dump ()
@@ -135,11 +138,10 @@ class PublisherAppln ():
 
       self.logger.debug ("BrokerAppln::driver - ready to go")
 
-      while (not self.mw_obj.lookup_topic (self.topiclist)):
-        time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
-        #self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
+      #while (not self.mw_obj.lookup_topic (self.topiclist)):
+      #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
 
-      #self.mw_obj.lookup_topic (self.topiclist)
+      self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
           time.sleep (1)

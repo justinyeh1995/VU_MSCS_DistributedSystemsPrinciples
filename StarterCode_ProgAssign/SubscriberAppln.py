@@ -59,6 +59,7 @@ class SubscriberAppln ():
     self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
+    self.num_topics = None # total num of topics we publish
 
   ########################################
   # configure/initialize
@@ -79,11 +80,12 @@ class SubscriberAppln ():
       config.read (args.config)
       self.lookup = config["Discovery"]["Strategy"]
       self.dissemination = config["Dissemination"]["Strategy"]
+      self.num_topics = args.num_topics  # total num of topics we publish
 
       # Now get our topic list of interest
       self.logger.debug ("SubscriberAppln::configure - selecting our topic list")
       ts = TopicSelector ()
-      self.topiclist = ts.interest ()
+      self.topiclist = ts.interest (self.num_topics)  # let topic selector give us the desired num of topics
 
       # Now setup up our underlying middleware object to which we delegate
       # everything
@@ -120,11 +122,10 @@ class SubscriberAppln ():
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
-      while (not self.mw_obj.lookup_topic (self.topiclist)):
-        time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
-        #self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
+      #while (not self.mw_obj.lookup_topic (self.topiclist)):
+      #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
 
-      #self.mw_obj.lookup_topic (self.topiclist)
+      self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
           time.sleep (1)
@@ -177,6 +178,8 @@ def parseCmdLineArgs ():
   parser.add_argument ("-p", "--port", default="5577", help="Port number on which our underlying sublisher ZMQ service runs, default=5577")
     
   parser.add_argument ("-d", "--discovery", default="localhost:5555", help="IP Addr:Port combo for the discovery service, default localhost:5555")
+
+  parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=1, help="Number of topics to publish, currently restricted to max of 9")
 
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 

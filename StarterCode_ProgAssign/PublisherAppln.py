@@ -118,7 +118,7 @@ class PublisherAppln ():
       # Now get our topic list of interest
       self.logger.debug ("PublisherAppln::configure - selecting our topic list")
       ts = TopicSelector ()
-      self.topiclist = ts.interest ()
+      self.topiclist = ts.interest (self.num_topics)  # let topic selector give us the desired num of topics
 
       # Now setup up our underlying middleware object to which we delegate
       # everything

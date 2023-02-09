@@ -126,7 +126,7 @@ class DiscoveryAppln ():
 
 ###################################
 #
-# Parse command line arguments
+# arse command line arguments
 #
 ###################################
 def parseCmdLineArgs ():
@@ -146,8 +146,8 @@ def parseCmdLineArgs ():
     
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 
-  parser.add_argument ("-pubCnt", "--pubCnt", default=1, type=int, help="the number of publishers")
-  parser.add_argument ("-subCnt", "--subCnt", default=1, type=int, help="the number of subscribers")
+  parser.add_argument ("-P", "--P", default=1, type=int, help="the number of publishers")
+  parser.add_argument ("-S", "--S", default=1, type=int, help="the number of subscribers")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   

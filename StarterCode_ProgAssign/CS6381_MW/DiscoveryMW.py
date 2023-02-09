@@ -83,8 +83,8 @@ class DiscoveryMW ():
       self.rep.bind (bind_string)
 
       # set the number of machines participating
-      self.pubCnt = args.pubCnt
-      self.subCnt = args.subCnt
+      self.pubCnt = args.P
+      self.subCnt = args.S
       
     except Exception as e:
       raise e
