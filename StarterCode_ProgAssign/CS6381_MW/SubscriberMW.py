@@ -105,6 +105,12 @@ class SubscriberMW ():
     except Exception as e:
       raise e
 
+  ######################
+  # temparory function
+  ######################
+  def setDissemination (self, dissemination):
+      self.dissemination = dissemination
+
   ########################################
   # register with the discovery service
   ########################################
@@ -218,6 +224,7 @@ class SubscriberMW ():
     try:
       lookup_msg = discovery_pb2.LookupPubByTopicReq ()
       lookup_msg.topiclist.extend(topiclist)
+      lookup_msg.role = discovery_pb2.ROLE_SUBSCRIBER
 
       disc_req = discovery_pb2.DiscoveryReq ()
       disc_req.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC

@@ -66,7 +66,6 @@ class PublisherAppln ():
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
     self.state = self.State.INITIALIZE # state that are we in
-    self.num_topics = None # total num of topics we publish
 
   ########################################
   # configure/initialize
@@ -80,7 +79,6 @@ class PublisherAppln ():
     
       # initialize our variables
       self.name = args.name # our name
-      self.iters = args.iters  # num of iterations
 
       # Now, get the configuration object
       self.logger.debug ("PublisherAppln::configure - parsing config.ini")
@@ -91,8 +89,9 @@ class PublisherAppln ():
     
       # Now get our topic list of interest
       self.logger.debug ("PublisherAppln::configure - selecting our topic list")
-      ts = TopicSelector ()
-      self.topiclist = ts.interest ()
+      self.topiclist = ["weather", "humidity", "airquality", "light", \
+                          "pressure", "temperature", "sound", "altitude", \
+                          "location"]
 
       # Now setup up our underlying middleware object to which we delegate
       # everything
@@ -130,10 +129,21 @@ class PublisherAppln ():
 
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("BrokerAppln::driver - check if are ready to go")
-      #print(self.mw_obj.is_ready ())
-      while (self.mw_obj.is_ready () != 1):
+      while (not self.mw_obj.is_ready ()):
         time.sleep (5)  # sleep between calls so that we don't make excessive calls
         self.logger.debug ("BrokerAppln::driver - check again if are ready to go")
+
+      self.logger.debug ("BrokerAppln::driver - ready to go")
+
+      while (not self.mw_obj.lookup_topic (self.topiclist)):
+        time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
+        #self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
+
+      #self.mw_obj.lookup_topic (self.topiclist)
+
+      while True:
+          time.sleep (1)
+          self.mw_obj.disseminateViaBroker()
 
         
     except Exception as e:
@@ -147,13 +157,12 @@ class PublisherAppln ():
 
     try:
       self.logger.debug ("**********************************")
-      self.logger.debug ("PublisherAppln::dump")
+      self.logger.debug ("BrokerAppln::dump")
       self.logger.debug ("------------------------------")
       self.logger.debug ("     Name: {}".format (self.name))
       self.logger.debug ("     Lookup: {}".format (self.lookup))
       self.logger.debug ("     Dissemination: {}".format (self.dissemination))
       self.logger.debug ("     TopicList: {}".format (self.topiclist))
-      self.logger.debug ("     Iterations: {}".format (self.iters))
       self.logger.debug ("**********************************")
 
     except Exception as e:

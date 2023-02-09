@@ -105,6 +105,8 @@ class PublisherAppln ():
       # initialize our variables
       self.name = args.name # our name
       self.iters = args.iters  # num of iterations
+      self.frequency = args.frequency # frequency with which topics are disseminated
+      self.num_topics = args.num_topics  # total num of topics we publish
 
       # Now, get the configuration object
       self.logger.debug ("PublisherAppln::configure - parsing config.ini")
@@ -123,7 +125,6 @@ class PublisherAppln ():
       self.logger.debug ("PublisherAppln::configure - initialize the middleware object")
       self.mw_obj = PublisherMW (self.logger)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
-      
       self.logger.debug ("PublisherAppln::configure - configuration complete")
       
     except Exception as e:
@@ -155,7 +156,7 @@ class PublisherAppln ():
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("PublisherAppln::driver - check if are ready to go")
       #print(self.mw_obj.is_ready ())
-      while (self.mw_obj.is_ready () != 1):
+      while (not self.mw_obj.is_ready ()):
         time.sleep (5)  # sleep between calls so that we don't make excessive calls
         self.logger.debug ("PublisherAppln::driver - check again if are ready to go")
 
@@ -172,6 +173,98 @@ class PublisherAppln ():
         # avoid transmission too frequently
         time.sleep (1)
         
+    except Exception as e:
+      raise e
+
+  ########################################
+  # generic invoke method called as part of upcall
+  #
+  # This method will get invoked as part of the upcall made
+  # by the middleware's event loop after it sees a timeout has
+  # occurred.
+  ########################################
+  def invoke_operation (self):
+    ''' Invoke operating depending on state  '''
+
+    try:
+      self.logger.info ("PublisherAppln::invoke_operation")
+
+      # check what state are we in. If we are in REGISTER state,
+      # we send register request to discovery service. If we are in
+      # ISREADY state, then we keep checking with the discovery
+      # service.
+      if (self.state == self.State.REGISTER):
+        # send a register msg to discovery service
+        self.logger.debug ("PublisherAppln::invoke_operation - register with the discovery service")
+        self.mw_obj.register (self.name, self.topiclist)
+
+        # Remember that we were invoked by the event loop as part of the upcall.
+        # So we are going to return back to it for its next iteration. Because
+        # we have just now sent a register request, the very next thing we expect is
+        # to receive a response from remote entity. So we need to set the timeout
+        # for the next iteration of the event loop to a large num and so return a None.
+        return None
+      
+      elif (self.state == self.State.ISREADY):
+        # Now keep checking with the discovery service if we are ready to go
+        #
+        # Note that in the previous version of the code, we had a loop. But now instead
+        # of an explicit loop we are going to go back and forth between the event loop
+        # and the upcall until we receive the go ahead from the discovery service.
+        
+        self.logger.debug ("PublisherAppln::invoke_operation - check if are ready to go")
+        self.mw_obj.is_ready ()  # send the is_ready? request
+
+        # Remember that we were invoked by the event loop as part of the upcall.
+        # So we are going to return back to it for its next iteration. Because
+        # we have just now sent a isready request, the very next thing we expect is
+        # to receive a response from remote entity. So we need to set the timeout
+        # for the next iteration of the event loop to a large num and so return a None.
+        return None
+      
+      elif (self.state == self.State.DISSEMINATE):
+
+        # We are here because both registration and is ready is done. So the only thing
+        # left for us as a publisher is dissemination, which we do it actively here.
+        self.logger.debug ("PublisherAppln::invoke_operation - start Disseminating")
+
+        # Now disseminate topics at the rate at which we have configured ourselves.
+        ts = TopicSelector ()
+        for i in range (self.iters):
+          # I leave it to you whether you want to disseminate all the topics of interest in
+          # each iteration OR some subset of it. Please modify the logic accordingly.
+          # Here, we choose to disseminate on all topics that we publish.  Also, we don't care
+          # about their values. But in future assignments, this can change.
+          for topic in self.topiclist:
+            # For now, we have chosen to send info in the form "topic name: topic value"
+            # In later assignments, we should be using more complex encodings using
+            # protobuf.  In fact, I am going to do this once my basic logic is working.
+            dissemination_data = ts.gen_publication (topic)
+            self.mw_obj.disseminate (self.name, topic, dissemination_data)
+
+          # Now sleep for an interval of time to ensure we disseminate at the
+          # frequency that was configured.
+          time.sleep (1/float (self.frequency))  # ensure we get a floating point num
+
+        self.logger.debug ("PublisherAppln::invoke_operation - Dissemination completed")
+
+        # we are done. So we move to the completed state
+        self.state = self.State.COMPLETED
+
+        # return a timeout of zero so that the event loop sends control back to us right away.
+        return 0
+        
+      elif (self.state == self.State.COMPLETED):
+
+        # we are done. Time to break the event loop. So we created this special method on the
+        # middleware object to kill its event loop
+        self.mw_obj.disable_event_loop ()
+        return None
+
+      else:
+        raise ValueError ("Undefined state of the appln object")
+      
+      self.logger.info ("PublisherAppln::invoke_operation completed")
     except Exception as e:
       raise e
 
@@ -221,9 +314,14 @@ def parseCmdLineArgs ():
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 
   parser.add_argument ("-i", "--iters", type=int, default=1000, help="number of publication iterations (default: 1000)")
+  
+  parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=1, help="Number of topics to publish, currently restricted to max of 9")
+
+  parser.add_argument ("-f", "--frequency", type=int,default=1, help="Rate at which topics disseminated: default once a second - use integers")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
-  
+  #parser.add_argument ("-l", "--loglevel", type=int, default=logging.INFO, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 20=logging.INFO")
+
   return parser.parse_args()
 
 

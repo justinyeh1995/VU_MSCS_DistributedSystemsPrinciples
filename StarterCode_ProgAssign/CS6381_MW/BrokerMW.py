@@ -101,10 +101,16 @@ class BrokerMW ():
     except Exception as e:
       raise e
 
+  ######################
+  # temparory function
+  ######################
+  def setDissemination (self, dissemination):
+      self.dissemination = dissemination
+
   ########################################
   # register with the discovery service
   ########################################
-  def register (self, name):
+  def register (self, name, topiclist):
     ''' register the appln with the discovery service '''
 
     try:
@@ -135,6 +141,7 @@ class BrokerMW ():
       register_req = discovery_pb2.RegisterReq ()  # allocate 
       register_req.role = discovery_pb2.ROLE_BOTH # this will change to an enum later on
       register_req.info.CopyFrom (registrant_info)
+      register_req.topiclist.extend (topiclist)
       self.logger.debug ("BrokerMW::register - done populating nested RegisterReq")
 
       # Build the outer layer Discovery Message
@@ -216,6 +223,7 @@ class BrokerMW ():
     try:
       lookup_msg = discovery_pb2.LookupPubByTopicReq ()
       lookup_msg.topiclist.extend(topiclist)
+      lookup_msg.role = discovery_pb2.ROLE_BOTH
 
       disc_req = discovery_pb2.DiscoveryReq ()
       disc_req.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC

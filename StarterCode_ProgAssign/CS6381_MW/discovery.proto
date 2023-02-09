@@ -80,7 +80,8 @@ message IsReadyResp
 // message types
 message LookupPubByTopicReq
 {
-    repeated string topiclist = 1; // modify this appropriately
+    Role role = 1;   // enum indicating what role we are playing
+    repeated string topiclist = 2; // modify this appropriately
 }
 
 // TO-DO

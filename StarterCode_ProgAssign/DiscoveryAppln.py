@@ -76,17 +76,12 @@ class DiscoveryAppln ():
       self.lookup = config["Discovery"]["Strategy"]
       self.dissemination = config["Dissemination"]["Strategy"]
     
-      # Now get our topic list of interest
-      self.logger.debug ("PublisherAppln::configure - selecting our topic list")
-      ts = TopicSelector ()
-      self.topiclist = ts.interest ()
-
       # Now setup up our underlying middleware object to which we delegate
       # everything
       self.logger.debug ("PublisherAppln::configure - initialize the middleware object")
       self.mw_obj = DiscoveryMW (self.logger)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
-      
+      self.mw_obj.setDissemination (self.dissemination)
       self.logger.debug ("PublisherAppln::configure - configuration complete")
       
     except Exception as e:
@@ -124,7 +119,6 @@ class DiscoveryAppln ():
       self.logger.debug ("------------------------------")
       self.logger.debug ("     Lookup: {}".format (self.lookup))
       self.logger.debug ("     Dissemination: {}".format (self.dissemination))
-      self.logger.debug ("     TopicList: {}".format (self.topiclist))
       self.logger.debug ("**********************************")
 
     except Exception as e:

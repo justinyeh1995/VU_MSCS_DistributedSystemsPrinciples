@@ -49,6 +49,7 @@ class DiscoveryMW ():
     self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
     self.pubCnt = 0
     self.subCnt = 0
+    self.brokerCnt = 1
 
 
   ########################################
@@ -88,6 +89,12 @@ class DiscoveryMW ():
     except Exception as e:
       raise e
 
+  ######################
+  # temparory function
+  ######################
+  def setDissemination (self, dissemination):
+      self.dissemination = dissemination
+
   ########################################
   # save info to storage 
   ########################################
@@ -126,6 +133,24 @@ class DiscoveryMW ():
         self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
         uid = registrant.id
         self.registry[uid] = {"role": "sub"}
+
+      elif role == discovery_pb2.ROLE_BOTH:
+        
+        self.brokerCnt -= 1
+        
+        self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
+        uid = registrant.id
+        addr = registrant.addr 
+        port = registrant.port
+        ts = registrant.timestamp
+        topiclist = req_info.topiclist
+
+        self.logger.debug ("DiscoveryMW::Storing Broker's information")
+        self.registry[uid] = { "role": "broker",
+                                "addr": addr, 
+                                "port": port,  
+                                "timestamp": ts, 
+                                "topiclist": topiclist}
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
@@ -196,12 +221,16 @@ class DiscoveryMW ():
       # first build a IsReady message
       self.logger.debug ("DiscoveryMW::is_ready - populate the nested IsReady msg")
       isready_msg = discovery_pb2.IsReadyResp ()  # allocate 
-
-      if self.pubCnt <= 0 and self.subCnt <= 0:
+    
+      self.logger.debug (f"DiscoveryMW::is_ready - Dissemination - {self.dissemination}")
+      self.logger.debug (f"DiscoveryMW::is_ready - Dissemination - {self.dissemination == 'Direct'}")
+      if ((self.pubCnt <= 0 and self.subCnt <= 0 and self.dissemination == "Direct") or
+         (self.pubCnt <= 0 and self.subCnt <= 0 and self.brokerCnt <= 0 and self.dissemination == "ViaBroker")):
         isready_msg.status = discovery_pb2.STATUS_SUCCESS  # this will change to an enum later on
       else:
         isready_msg.status = discovery_pb2.STATUS_UNKNOWN#STATUS_FAILURE # this will change to an enum later on
 
+      self.logger.debug (f"DiscoveryMW::is_ready - Status - {isready_msg.status}")
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::is_ready - build the outer DiscoveryReq message")
       disc_resp = discovery_pb2.DiscoveryResp ()
@@ -227,7 +256,7 @@ class DiscoveryMW ():
   ################
   ##
   ################
-  def gen_lookup_resp(self, topiclist):
+  def gen_lookup_resp(self, request):
     try:
       self.logger.debug ("DiscoveryMW::looking up publishers with specific topics")
 
@@ -236,18 +265,32 @@ class DiscoveryMW ():
       # the discovery service
     
       # The following code shows serialization using the protobuf generated code.
-      
+      topiclist = request.lookup_req.topiclist
+      role = request.lookup_req.role
       # first build a IsReady message
       self.logger.debug ("DiscoveryMW::lookup - populate the nested Lookup msg")
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
-      for name, detail in self.registry.items():
-        if detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist):
-          info = discovery_pb2.RegistrantInfo ()
-          info.id = name
-          info.addr = detail["addr"]
-          info.port = detail["port"]
-          info.timestamp = detail["timestamp"]
-          topic_msg.publishers.append(info)
+
+      if role == discovery_pb2.ROLE_SUBSCRIBER:
+        for name, detail in self.registry.items():
+          if ((self.dissemination == "Direct" and detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist))
+            or (self.dissemination == "ViaBroker" and detail["role"] == "broker" and set(detail["topiclist"]) & set(topiclist))):
+            info = discovery_pb2.RegistrantInfo ()
+            info.id = name
+            info.addr = detail["addr"]
+            info.port = detail["port"]
+            info.timestamp = detail["timestamp"]
+            topic_msg.publishers.append(info)
+
+      elif role == discovery_pb2.ROLE_BOTH:
+        for name, detail in self.registry.items():
+          if detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist):
+            info = discovery_pb2.RegistrantInfo ()
+            info.id = name
+            info.addr = detail["addr"]
+            info.port = detail["port"]
+            info.timestamp = detail["timestamp"]
+            topic_msg.publishers.append(info)
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::lookup - build the outer DiscoveryReq message")
@@ -324,7 +367,7 @@ class DiscoveryMW ():
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        resp = self.gen_lookup_resp(request.lookup_req.topiclist)
+        resp = self.gen_lookup_resp(request)
         return resp # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here

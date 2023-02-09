@@ -90,7 +90,6 @@ class SubscriberAppln ():
       self.logger.debug ("SubscriberAppln::configure - initialize the middleware object")
       self.mw_obj = SubscriberMW (self.logger)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
-      
       self.logger.debug ("SubscriberAppln::configure - configuration complete")
       
     except Exception as e:
@@ -121,10 +120,11 @@ class SubscriberAppln ():
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
-      #while (not self.mw_obj.lookup_topic (self.topiclist)):
-      #  self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
+      while (not self.mw_obj.lookup_topic (self.topiclist)):
+        time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
+        #self.logger.debug ("SubscriberAppln::driver - check again if we have a match to subscribe")
 
-      self.mw_obj.lookup_topic (self.topiclist)
+      #self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
           time.sleep (1)

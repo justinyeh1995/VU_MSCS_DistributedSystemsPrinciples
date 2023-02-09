@@ -103,6 +103,12 @@ class PublisherMW ():
     except Exception as e:
       raise e
 
+  ######################
+  # temparory function
+  ######################
+  def setDissemination (self, dissemination):
+      self.dissemination = dissemination
+
   ########################################
   # register with the discovery service
   ########################################
