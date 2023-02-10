@@ -27,6 +27,7 @@
 import os     # for OS functions
 import sys    # for syspath and system exception
 import time   # for sleep
+import timeit
 import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
@@ -279,7 +280,8 @@ class PublisherMW ():
   #################################################################
   def disseminate (self, data):
     try:
-      data += ":" + str(time.time())
+      #data += ":" + str(timeit.default_timer())
+      data += ":" + str(time.monotonic())
       self.logger.debug ("PublisherMW::disseminate - {}".format (data))
       self.pub.send_string (data)
 

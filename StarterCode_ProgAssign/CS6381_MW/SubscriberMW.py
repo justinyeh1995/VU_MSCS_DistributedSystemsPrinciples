@@ -36,6 +36,7 @@
 import os     # for OS functions
 import sys    # for syspath and system exception
 import time   # for sleep
+import timeit
 import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
@@ -328,7 +329,8 @@ class SubscriberMW ():
       message = self.sub.recv_string()
       topic, content, dissemTime = message.split(":")
       
-      self.logger.debug ("Latency = {}".format (time.time() - float(dissemTime)))
+      #self.logger.debug ("Latency = {}".format (timeit.default_timer() - float(dissemTime)))
+      self.logger.debug ("Latency = {}".format (time.monotonic() - float(dissemTime)))
       self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
 
     except Exception as e:
