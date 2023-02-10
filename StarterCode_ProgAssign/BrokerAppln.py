@@ -144,7 +144,6 @@ class PublisherAppln ():
       self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
-          time.sleep (1)
           self.mw_obj.disseminateViaBroker()
 
         
