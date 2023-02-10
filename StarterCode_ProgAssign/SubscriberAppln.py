@@ -128,7 +128,6 @@ class SubscriberAppln ():
       self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
-          time.sleep (1)
           # pass each topic to mw
           self.mw_obj.subscribe()
 

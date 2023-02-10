@@ -327,8 +327,9 @@ class SubscriberMW ():
       self.logger.debug ("SubscriberMW::subscribe")
       message = self.sub.recv_string()
       topic, content, dissemTime = message.split(":")
+      
       self.logger.debug ("Latency = {}".format (time.time() - float(dissemTime)))
-      self.logger.debug ("Retrieved Content = {}".format (message))
+      self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
 
     except Exception as e:
       raise e
