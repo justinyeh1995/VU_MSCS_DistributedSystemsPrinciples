@@ -330,7 +330,7 @@ class SubscriberMW ():
       topic, content, dissemTime = message.split(":")
       
       #self.logger.debug ("Latency = {}".format (timeit.default_timer() - float(dissemTime)))
-      self.logger.debug ("Latency = {}".format (time.monotonic() - float(dissemTime)))
+      self.logger.debug ("Latency = {}".format (1000*(time.monotonic() - float(dissemTime))))
       self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
 
     except Exception as e:

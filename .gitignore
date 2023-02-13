@@ -64,6 +64,8 @@ db.sqlite3-journal
 
 # Experiment Stuff
 *.out
+OUT/
+*.csv
 
 # Flask stuff:
 instance/
