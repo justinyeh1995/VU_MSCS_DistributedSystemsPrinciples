@@ -3,9 +3,12 @@
 import os
 import random # random number generation
 import hashlib  # for the secure hash library
+import configparser
 import argparse # argument parsing
 import json # for JSON
 import logging # for logging. Use it in place of print statements.
+
+import bisect
 
 ##########################
 #
@@ -21,16 +24,9 @@ class DHTGenerator ():
   #################
   def __init__ (self, logger):
     self.num_disc_dht = None  # num of discovery DHT instances
-    self.num_pub = None  # num of publishers
-    self.num_sub = None  # num of subscribers
     self.disc_base_port = None  # starting port num if multiple of the same service is deployed on the node
-    self.pub_base_port = None  # same for this
-    self.num_mn_nodes = None # num of nodes in mininet topo; will be derived
     self.bits_hash = None # number of bits in hash value (default 48)
     self.disc_dict = {} # dictionary of generated discovery DHT instances
-    self.pub_dict = {} # dictionary of generated publisher instances
-    self.sub_dict = {} # dictionary of generated subscriber instances
-    self.script_file = None  # for the experiment script
     self.json_file = None # for the database of DHT 
     self.logger = logger # The logger
 
@@ -39,25 +35,25 @@ class DHTGenerator ():
   #################
   def configure (self, args):
     # Here we initialize any internal variables
-    self.logger.debug ("DHTGenerator::configure")
+    self.logger.debug ("DHTFingerTableGenerator::configure")
 
-    self.bits_hash = args.bits_hash
-    self.num_disc_dht = args.num_disc_dht
-    self.num_pub = args.num_pub
-    self.num_sub = args.num_sub
-    self.disc_base_port = args.disc_base_port
-    self.pub_base_port = args.pub_base_port
+    # Now, get the configuration object
+    self.logger.debug ("DHTFingerTableGenerator:::configure - parsing config.ini")
+    config = configparser.ConfigParser ()
+    config.read (args.config)
+
+    self.bits_hash = int(config["BitHash"]["M"])
+    self.dht_file = args.dht_file
     self.json_file = args.json_file
-    
-    # Now let us initialize the dictionaries. Since the entities can be deployed
-    # across any host of the mininet topology, the dictionary is keyed by
-    # mininet host name. We assume montonically increasing host names.
-    for i in range (self.num_mn_nodes):
-      # we maintain a list of entities of a type per dict. So initialize to empty
-      self.disc_dict["h"+str(i+1)] = []
-      self.pub_dict["h"+str(i+1)] = []
-      self.sub_dict["h"+str(i+1)] = []
       
+    with open(self.dht_file, 'r') as f:
+        dht_data = json.load (f)
+    
+    # Sort the nodes in ascending order based on their hash values
+    self.sorted_nodes = sorted(dht_data['dht'], key=lambda node: node['hash'])
+    self.keys = [node['hash'] for node in self.sorted_nodes]
+
+
   #################
   # debugging output
   #################
@@ -65,137 +61,36 @@ class DHTGenerator ():
 
     self.logger.debug ("*******DHTGenerator::DUMP***********")
     self.logger.debug ("Num of bits in hash fn = {}".format (self.bits_hash))
-    self.logger.debug ("Num DHT instances = {}".format (self.num_disc_dht))
-    self.logger.debug ("Num pubs = {}".format (self.num_pub))
-    self.logger.debug ("Num subs = {}".format (self.num_sub))
-    self.logger.debug ("Base discovery port = {}".format (self.disc_base_port))
-    self.logger.debug ("Base pub port = {}".format (self.pub_base_port))
-    self.logger.debug ("Num Mininet nodes = {}".format (self.num_mn_nodes))
-    self.logger.debug ("Discovery dictionary = {}".format (self.disc_dict))
-    self.logger.debug ("Publisher dictionary = {}".format (self.pub_dict))
-    self.logger.debug ("Subscriber dictionary = {}".format (self.sub_dict))
+    self.logger.debug ("Finger Tables = {}".format (self.dht_finger_table))
     self.logger.debug ("**************************************************")
 
-  #################
-  # hash value
-  #################
-  def hash_func (self, id):
-    self.logger.debug ("DHTGenerator::hash_func")
 
-    # first get the digest from hashlib and then take the desired number of bytes from the
-    # lower end of the 256 bits hash. Big or little endian does not matter.
-    hash_digest = hashlib.sha256 (bytes (id, "utf-8")).digest ()  # this is how we get the digest or hash value
-    # figure out how many bytes to retrieve
-    num_bytes = int(self.bits_hash/8)  # otherwise we get float which we cannot use below
-    hash_val = int.from_bytes (hash_digest[:num_bytes], "big")  # take lower N number of bytes
-
-    return hash_val
-
-
-  #################
-  # gen dictionary values
-  #
-  # called by the populate method
-  #################
-  def gen_dict_values (self, prefix, index):
-    self.logger.debug ("DHTGenerator::gen_dict_values")
-
-    # here we generate the dictionary values.
-    # prefix, such as pub, sub or disc must be specified
-    # index should be monotonically increasing.
-
-    # generate our id
-    id = prefix + str (index)
-
-    # generate a host on which we will deploy this entity
-    mn_host_num = random.randint (1, self.num_mn_nodes)
-    host = "h" + str (mn_host_num)
-    ip = "10.0.0." + str(mn_host_num)
-
-    # if there already is a service of that type running on that host
-    # then, we cannot reuse that port and so must generate the next
-    # port in the sequence
-    if prefix == "disc":
-      port = self.disc_base_port + len (self.disc_dict[host])
-    elif prefix == "pub":
-      port = self.pub_base_port + len (self.pub_dict[host])
+  #######
+  # find successors
+  #######
+  def find_first_larger(self, val):
+    #self.logger.debug ("DHTGenerator::find_first_larger")
+    index = bisect.bisect_right(self.keys, val)
+    if index == len(self.keys):
+        # All values in arr are smaller than or equal to val
+        return self.keys[0]
     else:
-      port = None
+        return self.keys[index] 
 
-    # return the generated parameters
-    return id, host, ip, port
-  
-  #################
-  # check for collision
-  #
-  #################
-  def check4collision (self, hash_val, dictionary):
-    self.logger.debug ("DHTGenerator::check4collision")
-
-    # check the dictionary if the hash value already exists
-    for i in range (self.num_mn_nodes):
-      host_list = dictionary["h"+str (i+1)]
-      for nested_dict in host_list:
-        if nested_dict["hash"] == hash_val:
-          return True
-
-    return False # otherwise
-  
 
   #################
-  # populate a given dict.
-  #
-  # Generic method
+  # gen finger tables
   #################
-  def populate_dict (self, prefix, num_entities):
-    self.logger.debug ("DHTGenerator::populate_dict")
+  def gen_finger_table (self, hashVal):
+    #self.logger.debug ("DHTGenerator::gen_finger_table")
 
-    # populate the dictionary corresponding to the entity
-    # we are dealing with (identified by prefix). Ensure
-    # that there is no duplicate and no hash collision on the
-    # generated name (but that means our hash fn is not good)
-    #
-    # We can guarantee no duplicate because we will be
-    # generating sequentially for each entity and
-    # not randomly but must check for collision
+    finger_table = []
+    for i in range (self.bits_hash):
+        val = (hashVal + 2**(i)) % 2**(self.bits_hash)
+        succ = self.find_first_larger (val)
+        finger_table.append (succ)
 
-    # check if no prefix is passed
-    if not prefix:
-      raise ValueError ("populate_dict::prefix not supplied")
-
-    # Since we are making this a generic method (exploiting the fact that
-    # all dictionaries look very similar), so we must set the handle to
-    # point to the correct dictionary
-    if prefix == "disc":
-      target_dict = self.disc_dict
-    elif prefix == "pub":
-      target_dict = self.pub_dict
-    elif prefix == "sub":
-      target_dict = self.sub_dict
-    else:
-      raise ValueError ("populate_dict::unknown prefix: {}".format (prefix))
-      
-    for i in range (num_entities):
-      collision = True  # assume there is collision
-      while (collision):
-        # keep generating values until no collision
-        id, host, ip, port = self.gen_dict_values (prefix, index=i+1)
-        if port:
-          string = id + ":" + ip + ":" + str (port)  # will be the case for disc and pubs
-        else:
-          string = id + ":" + ip  # will be the case for subscribers
-
-        # now get the hash value for this string
-        hash_val = self.hash_func (string)
-        
-        # check if this hash value already exists anywhere in our dict
-        collision = self.check4collision (hash_val, target_dict)
-        if collision:
-          self.logger.debug ("DHTGenerator::populate_dict -- collision occurred for string {}".format (str))
-
-      # now that we know that the generated values do not cause collision
-      # insert it into our dictionary
-      target_dict[host].append ({"id": id, "hash": hash_val, "IP": ip, "port": port})
+    return finger_table
 
           
   #######################
@@ -203,24 +98,23 @@ class DHTGenerator ():
   #
   # Change/extend this code to suit your needs
   #######################
-  def jsonify_dht_db (self):
-    self.logger.debug ("DHTGenerator::jsonify_dht_db")
+  def jsonify_dht_finger_table (self):
+    self.logger.debug ("DHTFingerTableGenerator::jsonify_dht_finger_table")
 
     # first get an in-memory representation of our DHT DB, which is a
     # dictionary with key dht
-    dht_db = {}  # empty dictionary
-    dht_db["dht"] = []
-    for i in range (self.num_mn_nodes):
-      host = "h" + str (i+1)
-      host_list = self.disc_dict[host]
-      for nested_dict in host_list:
-        dht_db["dht"].append ({"id": nested_dict["id"], "hash": nested_dict["hash"], \
-                               "IP": nested_dict["IP"], "port": nested_dict["port"], "host": host})
+    self.dht_finger_table = {}  # empty dictionary
+    self.dht_finger_table["finger_tables"] = []
+    for i, node in enumerate (self.sorted_nodes):
+        tcp_addr = node["IP"] + ":" + str(node["port"])
+        finger_table = self.gen_finger_table(node['hash'])
+        self.dht_finger_table["finger_tables"].append ({"id": node["id"], "hash": node["hash"], \
+                "TCP": tcp_addr , "finger_table": finger_table})
     
     # Here we are going to generate a DB of all the DHT node details and
     # save it as a json file
     with open (self.json_file, "w") as f:
-      json.dump (dht_db, f)
+      json.dump (self.dht_finger_table, f, indent=4)
       
     f.close ()
           
@@ -230,27 +124,14 @@ class DHTGenerator ():
   #################
   def driver (self):
     self.logger.debug ("DHTGenerator::driver")
-
-    # Just dump the contents
-    self.dump ()
     
     # First, seed the random number generator
     random.seed ()  
 
-    # Now generate the entries for our discovery dht nodes
-    self.populate_dict ("disc", self.num_disc_dht)
-
-    # Now generate the entries for our publishers
-    self.populate_dict ("pub", self.num_pub)
-
-    # Now generate the entries for our subscribers
-    self.populate_dict ("sub", self.num_sub)
-
-    self.dump ()
-
     # Now JSONify the DHT DB
-    self.jsonify_dht_db ()
+    self.jsonify_dht_finger_table ()
       
+    self.dump ()
 
 ###################################
 #
@@ -265,21 +146,11 @@ def parseCmdLineArgs ():
   #
   parser.add_argument ("-b", "--bits_hash", type=int, choices=[8,16,24,32,40,48,56,64], default=48, help="Number of bits of hash value to test for collision: allowable values between 6 and 64 in increments of 8 bytes, default 48")
 
-  parser.add_argument ("-D", "--num_disc_dht", type=int, default=20, help="Number of Discovery DHT instances, default 20")
+  parser.add_argument ("-c", "--config", default="../config.ini", help="configuration file (default: config.ini)")
 
-  parser.add_argument ("-P", "--num_pub", type=int, default=5, help="number of publishers, default 5")
-  
-  parser.add_argument ("-S", "--num_sub", type=int, default=5, help="number of subscribers, default 5")
+  parser.add_argument ("-dht", "--dht_file", default="dht.json", help="JSON file with the database of all DHT nodes, default dht.json")
 
-  parser.add_argument ("-d", "--disc_base_port", type=int, default=5555, help="base port for discovery, default 5555")
-
-  parser.add_argument ("-p", "--pub_base_port", type=int, default=7777, help="base port for publishers, default 7777")
-
-  parser.add_argument ("-t", "--mn_topo", default="single,20", help="Mininet topology, default single,20 - other possibilities include linear,N or tree,fanout=N,depth=M")
-
-  parser.add_argument ("-f", "--script_file", default="mnexperiment.txt", help="Experiment file to be sourced from Mininet prompt, default mnexperiment.txt")
-
-  parser.add_argument ("-j", "--json_file", default="dht.json", help="JSON file with the database of all DHT nodes, default dht.json")
+  parser.add_argument ("-j", "--json_file", default="finger_table.json", help="JSON file with the database of all DHT nodes, default dht.json")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   
