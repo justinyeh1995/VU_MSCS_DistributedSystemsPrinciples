@@ -261,6 +261,7 @@ class PublisherMW ():
         return disc_resp.register_resp.status
       elif (disc_resp.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
+        print (f"PublisherMW::handle_reply - isready_resp.status = {disc_resp.isready_resp.status}")
         return disc_resp.isready_resp.status
       else: # anything else is unrecognizable by this object
         # raise an exception here

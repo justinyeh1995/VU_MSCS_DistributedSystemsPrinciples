@@ -32,6 +32,7 @@ import json
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
+#from CS6381_MW.Common import HashFunction
 
 # import any other packages you need.
 
@@ -54,14 +55,19 @@ class DHTNodeMW ():
     self.pubCnt = 0
     self.subCnt = 0
     self.brokerCnt = 1
+    self.localPubCnt = 0
+    self.localSubCnt = 0
+    self.localBrokerCnt = 0 
     self.dht_file = "DHT/dht.json"
+    self.sorted_nodes = None
     self.finger_table_file = "DHT/finger_table.json"
     self.bits_hash = None
     self.hashVal = None
+    self.hf = None
     self.pred = None
     self.succ = None
-    self.hash_range = list()
-    self.finger_table = list()
+    self.hash_range = None
+    self.finger_table = None
     self.finger_table_socket = list()
 
   ########################################
@@ -110,6 +116,7 @@ class DHTNodeMW ():
       self.pubCnt = args.P
       self.subCnt = args.S
       self.bits_hash = int(config['BitHash']['M'])
+      #self.hf = HashFunction(self.bits_hash)
 
       self.configure_REQ (args)
       self.configure_FingerTable (args)
@@ -206,7 +213,7 @@ class DHTNodeMW ():
 
       if role == discovery_pb2.ROLE_PUBLISHER:
         
-        self.pubCnt -= 1
+        self.localPubCnt += 1
         
         # get the topic list
         topiclist = req_info.topiclist
@@ -217,7 +224,7 @@ class DHTNodeMW ():
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
         
-        self.subCnt -= 1
+        self.localSubCnt += 1
 
         self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
         resp = self.invoke_chord_register (registrant, "None", role)
@@ -225,7 +232,7 @@ class DHTNodeMW ():
 
       elif role == discovery_pb2.ROLE_BOTH:
         
-        self.brokerCnt -= 1
+        self.localBrokerCnt += 1
         
         self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
 
@@ -240,7 +247,26 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
 
+  ########################################
+  # isReady
+  ########################################
+  def isReady (self, byteMsg):
+    '''handle registrations'''
+    try:
+      self.logger.debug ("DiscoveryMW::isReady")
+      if self.dissemination == "Direct":
+        tag = b"0:0:0"
+      else:
+        tag = b"0:0"
 
+      resp = self.invoke_chord_isReady (tag, byteMsg)
+      print(resp)
+      return resp == b"True"
+        
+
+    except Exception as e:
+      raise e
+    
   ########################################
   # register response: success
   ########################################
@@ -290,7 +316,7 @@ class DHTNodeMW ():
   # is_ready response: ready
   ###########################
 
-  def gen_ready_resp (self):
+  def gen_ready_resp (self, status):
     ''' register the appln with the discovery service '''
 
     try:
@@ -308,8 +334,8 @@ class DHTNodeMW ():
     
       self.logger.debug (f"DiscoveryMW::is_ready - Dissemination - {self.dissemination}")
       self.logger.debug (f"DiscoveryMW::is_ready - Dissemination - {self.dissemination == 'Direct'}")
-      if ((self.pubCnt <= 0 and self.subCnt <= 0 and self.dissemination == "Direct") or
-         (self.pubCnt <= 0 and self.subCnt <= 0 and self.brokerCnt <= 0 and self.dissemination == "ViaBroker")):
+      
+      if status:
         isready_msg.status = discovery_pb2.STATUS_SUCCESS  # this will change to an enum later on
       else:
         isready_msg.status = discovery_pb2.STATUS_UNKNOWN#STATUS_FAILURE # this will change to an enum later on
@@ -414,10 +440,7 @@ class DHTNodeMW ():
        
         # REP socket.
         # need to set time out to 1 second so that we can check if we need to exit
-        # self.rep.RCVTIMEO = 10
 
-        # events = dict (self.poller.poll (timeout=timeout))
-        # if self.rep in events:
         self.logger.debug ("DiscoveryMW::event_loop - wait for a request from client")
         tag, bytesMsg = self.rep.recv_multipart () 
         print(tag)
@@ -425,6 +448,7 @@ class DHTNodeMW ():
         resp = self.demultiplex_request (tag, bytesMsg)
         # now send this to our discovery service
         self.logger.debug ("DiscoveryMW:: send stringified buffer back to publishers/subscribers")
+        print(resp)
         self.rep.send (resp)  # we use the "send" method of ZMQ that sends the bytes
 
     except Exception as e:
@@ -437,10 +461,10 @@ class DHTNodeMW ():
 
   def demultiplex_request (self, tag, bytesMsg):
 
-    if tag == b'chord':
-      resp = self.handle_chord_request (bytesMsg)
-    else:
+    if tag == b'client':
       resp = self.handle_request (bytesMsg)
+    else:
+      resp = self.handle_chord_request (tag, bytesMsg)
 
     return resp
 
@@ -462,13 +486,14 @@ class DHTNodeMW ():
 
       if (request.msg_type == discovery_pb2.TYPE_REGISTER):
         # registraions
-        self.register(request)
+        self.register (request)
         # this is a response to register message
         resp = self.gen_register_resp()
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        resp = self.gen_ready_resp()
+        status = self.isReady (bytesMsg)
+        resp = self.gen_ready_resp(status)
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
@@ -486,7 +511,7 @@ class DHTNodeMW ():
   # handle an incoming chord request
   #################################################################
 
-  def handle_chord_request (self, bytesMsg):
+  def handle_chord_request (self, tag, bytesMsg):
 
     try:
       self.logger.debug ("DiscoveryMW::handle_dht_request")
@@ -506,9 +531,8 @@ class DHTNodeMW ():
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        self.chord_isReady(request)
-        resp = self.gen_ready_resp()
-        return resp
+        status = self.chord_isReady(tag, bytesMsg)
+        return status
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
         self.chord_lookup(request)
@@ -540,7 +564,28 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
 
-
+  ######
+  #
+  ######
+  def chord_isReady(self, tag, bytesMsg):
+    try:
+      self.logger.debug ("DiscoveryMW::chord_isReady")
+      resp = self.invoke_chord_isReady(tag, bytesMsg)
+      print(resp)
+      return resp
+    
+    except Exception as e:
+      raise e
+  
+  def chord_lookup(self, request):
+    try:
+      self.logger.debug ("DiscoveryMW::chord_lookup")
+      resp = self.invoke_chord_lookup(request)
+      return resp
+    
+    except Exception as e:
+      raise e
+    
   ######################
   # REQ
   ######################
@@ -669,3 +714,53 @@ class DHTNodeMW ():
       except Exception as e:
         raise e
       
+  ######################
+  # INVOKE CHORD ISREADY: REQ
+  ######################
+  def invoke_chord_isReady (self, tag, byteMsg):
+      try:
+        self.logger.debug ("DiscoveryMW::invoke_chord_isReady")
+
+        if self.dissemination == "Direct":
+          count, prevPubCnt, prevSubCnt = tag.decode('utf-8').split(":")
+          count = int(count) + 1
+          currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
+          currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
+          string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt)
+          print("tag: ", string)
+
+          # edge case: if the node is the last node in the ring
+          if count == len(self.sorted_nodes):
+            if currlocalPubCnt != self.pubCnt or currlocalSubCnt != self.subCnt:
+              return b'False'
+          # edge case: if the required numbers are met
+          if currlocalPubCnt == self.pubCnt and currlocalSubCnt == self.subCnt:
+            return b'True'
+
+        elif self.dissemination == "ViaBroker":
+          count, prevBrokerCnt = tag.decode('utf-8').split(":")
+          count = int(count) + 1
+          currlocalBrokerCnt = self.localbrokerCnt + int(prevBrokerCnt)
+          string = str(count) + ":" + str(currlocalBrokerCnt)
+          print("tag: ", string)
+
+          # edge case: if the node is the last node in the ring
+          if count == self.brokerCnt and currlocalBrokerCnt != self.brokerCnt:
+            return b'False'
+          # edge case: if the required numbers are met
+          if currlocalBrokerCnt == self.brokerCnt:
+            return b'True'
+                  
+        tag = string.encode('utf-8')
+        
+        buf2send = [tag, byteMsg] # tag, byteMsg
+
+        # send the request to the next successor
+        self.req.send_multipart (buf2send)
+        resp = self.req.recv()
+        # propagate the response back to the handler
+        print("resp: ", resp)
+        return resp
+      
+      except Exception as e:
+        raise e
