@@ -268,6 +268,31 @@ class DHTNodeMW ():
       raise e
     
   ########################################
+  #
+  ########################################
+  def lookup (self, request):
+    '''handle registrations'''
+    try:
+      self.logger.debug ("DiscoveryMW::lookup")
+
+      req_info = request.lookup_req
+    
+      # get the topic list
+      topiclist = req_info.topiclist
+      role = req_info.role
+
+      pubList = []
+      for topic in topiclist:
+        pub = self.invoke_chord_lookup (topic, role)
+        print(pub)
+        pubList.append(pub)
+
+      return pubList
+
+    except Exception as e:
+      raise e
+    
+  ########################################
   # register response: success
   ########################################
 
@@ -368,7 +393,7 @@ class DHTNodeMW ():
   # lookup response
   ##################
 
-  def gen_lookup_resp(self, request):
+  def gen_lookup_resp(self, pubList):
     try:
       self.logger.debug ("DiscoveryMW::looking up publishers with specific topics")
 
@@ -377,32 +402,18 @@ class DHTNodeMW ():
       # the discovery service
     
       # The following code shows serialization using the protobuf generated code.
-      topiclist = request.lookup_req.topiclist
-      role = request.lookup_req.role
+      
       # first build a IsReady message
       self.logger.debug ("DiscoveryMW::lookup - populate the nested Lookup msg")
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
 
-      if role == discovery_pb2.ROLE_SUBSCRIBER:
-        for name, detail in self.registry.items():
-          if ((self.dissemination == "Direct" and detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist))
-            or (self.dissemination == "ViaBroker" and detail["role"] == "broker" and set(detail["topiclist"]) & set(topiclist))):
-            info = discovery_pb2.RegistrantInfo ()
-            info.id = name
-            info.addr = detail["addr"]
-            info.port = detail["port"]
-            info.timestamp = detail["timestamp"]
-            topic_msg.publishers.append(info)
-
-      elif role == discovery_pb2.ROLE_BOTH:
-        for name, detail in self.registry.items():
-          if detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist):
-            info = discovery_pb2.RegistrantInfo ()
-            info.id = name
-            info.addr = detail["addr"]
-            info.port = detail["port"]
-            info.timestamp = detail["timestamp"]
-            topic_msg.publishers.append(info)
+      for pub in pubList:
+        name, addr, port = pub.decode('utf-8').split(':')
+        info = discovery_pb2.RegistrantInfo ()
+        info.id = name
+        info.addr = addr
+        info.port = int(port)
+        topic_msg.publishers.append(info)
 
       # Build the outer layer Discovery Message
       self.logger.debug ("DiscoveryMW::lookup - build the outer DiscoveryReq message")
@@ -497,7 +508,8 @@ class DHTNodeMW ():
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        resp = self.gen_lookup_resp(request)
+        pubList = self.lookup (request) 
+        resp = self.gen_lookup_resp(pubList)
         return resp # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
@@ -535,9 +547,8 @@ class DHTNodeMW ():
         return status
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        self.chord_lookup(request)
-        resp = self.gen_lookup_resp(request)
-        return resp # relations with proto definitions
+        pub = self.chord_lookup(request)
+        return pub # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")
@@ -580,7 +591,10 @@ class DHTNodeMW ():
   def chord_lookup(self, request):
     try:
       self.logger.debug ("DiscoveryMW::chord_lookup")
-      resp = self.invoke_chord_lookup(request)
+      # get the details of the registrant
+      topic = request.lookup_req.topiclist[0]
+      role = request.lookup_req.role
+      resp = self.invoke_chord_lookup(topic, role)
       return resp
     
     except Exception as e:
@@ -762,5 +776,66 @@ class DHTNodeMW ():
         print("resp: ", resp)
         return resp
       
+      except Exception as e:
+        raise e
+      
+  ######################
+  # 
+  ######################
+  def invoke_chord_lookup (self, topic, role):
+      try:
+        self.logger.debug ("DiscoveryMW::invoke_chord_lookup")
+        
+        hashVal = self.hash_func(topic)
+
+        if role == discovery_pb2.ROLE_SUBSCRIBER:
+          # END: this is the node that should store the info
+          for interval in self.hash_range:
+            if hashVal in interval:
+              # store the info in the registry
+              for name, detail in self.registry.items():
+                if ((self.dissemination == "Direct" and detail["role"] == 1) or
+                    (self.dissemination == "ViaBroker" and detail["role"] == 3)):
+                  string = name + ":" + detail["addr"] + ":" + str(detail["port"])
+              return string.encode('utf-8')
+                    
+        elif role == discovery_pb2.ROLE_BOTH:          
+          # END: this is the node that should store the info
+          for interval in self.hash_range:
+            if hashVal in interval:
+              # store the info in the registry
+              for name, detail in self.registry.items():
+                if detail["role"] == "pub":
+                  string = name + ":" + detail["addr"] + ":" + str(detail["port"])
+              return string.encode('utf-8')
+          
+        # Serialize the request
+        # Serialize the request
+        lookup_msg = discovery_pb2.LookupPubByTopicReq ()
+        lookup_msg.topiclist.extend(topic)
+        lookup_msg.role = discovery_pb2.ROLE_SUBSCRIBER
+
+        disc_req = discovery_pb2.DiscoveryReq ()
+        disc_req.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC
+        # It was observed that we cannot directly assign the nested field here.
+        # A way around is to use the CopyFrom method as shown
+        disc_req.lookup_req.CopyFrom (lookup_msg)
+        self.logger.debug ("SubscriberMW::lookup - done building the outer message")
+
+        # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
+        # a real string
+        byteMsg = disc_req.SerializeToString ()
+        self.logger.debug ("Stringified serialized buf = {}".format (byteMsg))
+
+        buf2send = [b'chord', byteMsg] # tag, byteMsg
+
+        # send the request to the next successor
+        socket = self.chord_closest_preceding_node (hashVal)
+        socket.send_multipart (buf2send)
+        resp = socket.recv ()
+        # propagate the response back to the handler
+        print("resp: ", resp)
+        return resp 
+
       except Exception as e:
         raise e

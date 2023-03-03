@@ -252,8 +252,12 @@ class SubscriberMW ():
       for topic in topiclist:
         self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
 
+      conn_pool = set()
       for info in pubList:
         connect_str = "tcp://" + info.addr + ":" + str(info.port)
+        if connect_str in conn_pool:
+          continue
+        conn_pool.add(connect_str)
         self.sub.connect (connect_str)
       
       return True
