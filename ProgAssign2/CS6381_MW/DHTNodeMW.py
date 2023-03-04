@@ -257,7 +257,7 @@ class DHTNodeMW ():
       if self.dissemination == "Direct":
         tag = b"0:0:0"
       else:
-        tag = b"0:0"
+        tag = b"0:0:0:0"
 
       resp = self.invoke_chord_isReady (tag, byteMsg)
       print(resp)
@@ -752,17 +752,25 @@ class DHTNodeMW ():
             return b'True'
 
         elif self.dissemination == "ViaBroker":
-          count, prevBrokerCnt = tag.decode('utf-8').split(":")
+          count, prevPubCnt, prevSubCnt, prevBrokerCnt = tag.decode('utf-8').split(":")
           count = int(count) + 1
-          currlocalBrokerCnt = self.localbrokerCnt + int(prevBrokerCnt)
-          string = str(count) + ":" + str(currlocalBrokerCnt)
+          currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
+          currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
+          currlocalBrokerCnt = self.localBrokerCnt + int(prevBrokerCnt)
+          string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt) + ":" + str(currlocalBrokerCnt)
           print("tag: ", string)
 
+
           # edge case: if the node is the last node in the ring
-          if count == self.brokerCnt and currlocalBrokerCnt != self.brokerCnt:
-            return b'False'
+          if count == len(self.sorted_nodes):
+            if (currlocalPubCnt != self.pubCnt or 
+                currlocalSubCnt != self.subCnt or
+                currlocalBrokerCnt != self.brokerCnt):
+              return b'False'
           # edge case: if the required numbers are met
-          if currlocalBrokerCnt == self.brokerCnt:
+          if (currlocalPubCnt == self.pubCnt and 
+              currlocalSubCnt == self.subCnt and
+              currlocalBrokerCnt == self.brokerCnt):
             return b'True'
                   
         tag = string.encode('utf-8')
@@ -805,7 +813,7 @@ class DHTNodeMW ():
             if hashVal in interval:
               # store the info in the registry
               for name, detail in self.registry.items():
-                if detail["role"] == "pub":
+                if detail["role"] == 1:
                   string = name + ":" + detail["addr"] + ":" + str(detail["port"])
               return string.encode('utf-8')
           
@@ -813,7 +821,7 @@ class DHTNodeMW ():
         # Serialize the request
         lookup_msg = discovery_pb2.LookupPubByTopicReq ()
         lookup_msg.topiclist.extend(topic)
-        lookup_msg.role = discovery_pb2.ROLE_SUBSCRIBER
+        lookup_msg.role = discovery_pb2.ROLE_SUBSCRIBER if role == discovery_pb2.ROLE_SUBSCRIBER else discovery_pb2.ROLE_BOTH
 
         disc_req = discovery_pb2.DiscoveryReq ()
         disc_req.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC

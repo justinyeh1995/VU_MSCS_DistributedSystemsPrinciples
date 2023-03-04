@@ -101,11 +101,6 @@ class BrokerMW ():
     except Exception as e:
       raise e
 
-  ######################
-  # temparory function
-  ######################
-  def setDissemination (self, dissemination):
-      self.dissemination = dissemination
 
   ########################################
   # register with the discovery service
@@ -160,7 +155,7 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("BrokerMW::register - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
 
       # now go to our event loop to receive a response to this request
       self.logger.debug ("BrokerMW::register - now wait for reply")
@@ -207,7 +202,7 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("BrokerMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'client',buf2send]) # we use the "send" method of ZMQ that sends the bytes
       
       # now go to our event loop to receive a response to this request
       self.logger.debug ("BrokerMW::is_ready - now wait for reply")
@@ -239,7 +234,7 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
 
       infoList = self.event_loop()
       pubList = infoList.publishers
@@ -250,8 +245,12 @@ class BrokerMW ():
       for topic in topiclist:
         self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
 
+      conn_pool = set()
       for info in pubList:
         connect_str = "tcp://" + info.addr + ":" + str(info.port)
+        if connect_str in conn_pool:
+          continue
+        conn_pool.add(connect_str)
         self.sub.connect (connect_str)
       
       return True
