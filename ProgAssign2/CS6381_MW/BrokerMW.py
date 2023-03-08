@@ -31,6 +31,9 @@ import zmq  # ZMQ sockets
 # import serialization logic
 from CS6381_MW import discovery_pb2
 
+import json
+import random
+
 # import any other packages you need.
 
 ##################################
@@ -49,6 +52,7 @@ class BrokerMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
+    self.dht_file = "DHT/dht.json"
 
   ########################################
   # configure/initialize
@@ -87,8 +91,7 @@ class BrokerMW ():
       self.logger.debug ("BrokerMW::configure - connect to Discovery service")
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
-      connect_str = "tcp://" + args.discovery
-      self.req.connect (connect_str)
+      self.configure_REQ ()
       
       # Since we are the publisher, the best practice as suggested in ZMQ is for us to
       # "bind" to the PUB socket
@@ -101,6 +104,21 @@ class BrokerMW ():
     except Exception as e:
       raise e
 
+  ########################################
+  # REQ socket configure Connect to successor 
+  ########################################
+
+  def configure_REQ (self):
+      self.logger.debug ("DiscoveryMW::configure_REQ")
+      with open(self.dht_file, 'r') as f:
+          dht_data = json.load (f)
+      
+      # Sort the nodes in ascending order based on their hash values
+      self.sorted_nodes = sorted(dht_data['dht'], key=lambda node: node['hash'])
+      node = random.choice(self.sorted_nodes)
+
+      conn_string = "tcp://" + node["IP"] + ":" + str(node["port"]) 
+      self.req.connect (conn_string)
 
   ########################################
   # register with the discovery service

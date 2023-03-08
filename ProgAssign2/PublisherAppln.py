@@ -152,13 +152,14 @@ class PublisherAppln ():
       self.logger.debug ("PublisherAppln::driver - register with the discovery service")
       result = self.mw_obj.register (self.name, self.topiclist)
       self.logger.debug ("PublisherAppln::driver - result of registration".format (result))
+      time.sleep(5)
 
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("PublisherAppln::driver - check if are ready to go")
       #print(self.mw_obj.is_ready ())
-      while (not self.mw_obj.is_ready ()):
-        time.sleep (5)  # sleep between calls so that we don't make excessive calls
-        self.logger.debug ("PublisherAppln::driver - check again if are ready to go")
+      # while (not self.mw_obj.is_ready ()):
+      #   time.sleep (5)  # sleep between calls so that we don't make excessive calls
+      #   self.logger.debug ("PublisherAppln::driver - check again if are ready to go")
 
       # Now disseminate
       ts = TopicSelector ()
@@ -317,7 +318,9 @@ def parseCmdLineArgs ():
   
   parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=1, help="Number of topics to publish, currently restricted to max of 9")
 
-  parser.add_argument ("-f", "--frequency", type=int,default=1, help="Rate at which topics disseminated: default once a second - use integers")
+  parser.add_argument ("-f", "--frequency", type=float, default=1.0, help="Rate at which topics disseminated: default once a second - use integers")
+
+  parser.add_argument ("-j", "--J", default="dht.json", type=str, help="the json file containing the dht information")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   #parser.add_argument ("-l", "--loglevel", type=int, default=logging.INFO, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 20=logging.INFO")

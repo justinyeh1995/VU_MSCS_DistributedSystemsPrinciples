@@ -69,6 +69,7 @@ class DHTNodeMW ():
     self.hash_range = None
     self.finger_table = None
     self.finger_table_socket = list()
+    self.isReady = False
 
   ########################################
   # configure/initialize
@@ -135,14 +136,16 @@ class DHTNodeMW ():
       
       # Sort the nodes in ascending order based on their hash values
       self.sorted_nodes = sorted(dht_data['dht'], key=lambda node: node['hash'])
+      self.logger.debug ("DiscoveryMW::configure_REQ - sorted_nodes: %s", [node["hash"] for node in self.sorted_nodes])
       for i, node in enumerate(self.sorted_nodes):
           if node["id"] == args.name:
               self.hashVal = node["hash"]
+              self.tcp = node["IP"] + ":" + str(node["port"])
               self.succ = self.sorted_nodes[(i+1)%len(self.sorted_nodes)]
               self.pred = self.sorted_nodes[(i-1)%len(self.sorted_nodes)]
-              self.hash_range = [range(self.pred["hash"]+1, self.hashVal+1)] if self.pred["hash"] < self.hashVal else [range(self.pred["hash"]+1, 2**self.bits_hash-1+1),range(0, self.hashVal+1)]
+              self.hash_range = [range(self.pred["hash"]+1, self.hashVal)] if self.pred["hash"] < self.hashVal else [range(self.pred["hash"]+1, 2**self.bits_hash-1),range(0, self.hashVal)]
               break
-
+      self.logger.debug ("DiscoveryMW::configure_REQ - hashVal: %s, tcp: %s, succ: %s, pred: %s, hash_range: %s", self.hashVal, self.tcp, self.succ, self.pred, self.hash_range)
       conn_string = "tcp://" + self.succ["IP"] + ":" + str(self.succ["port"]) 
       self.req.connect (conn_string)
     
@@ -169,6 +172,7 @@ class DHTNodeMW ():
                   socket = context.socket (zmq.REQ)
                   socket.connect (conn_string)
                   self.finger_table_socket.append(socket)
+              self.logger.debug ("DiscoveryMW::configure_FingerTable - finger_table: {}".format(self.finger_table))
               break
 
 
@@ -283,9 +287,9 @@ class DHTNodeMW ():
 
       pubList = []
       for topic in topiclist:
-        pub = self.invoke_chord_lookup (topic, role)
-        print(pub)
-        pubList.append(pub)
+        pubs = self.invoke_chord_lookup (topic, role)
+        print(pubs)
+        pubList.extend(pubs)
 
       return pubList
 
@@ -300,7 +304,7 @@ class DHTNodeMW ():
     ''' handle the discovery request '''
 
     try:
-      self.logger.debug ("DiscoveryMW::registering")
+      self.logger.debug ("DiscoveryMW::register - generate the response")
 
       # as part of registration with the discovery service, we send
       # what role we are playing, the list of topics we are publishing,
@@ -395,7 +399,7 @@ class DHTNodeMW ():
 
   def gen_lookup_resp(self, pubList):
     try:
-      self.logger.debug ("DiscoveryMW::looking up publishers with specific topics")
+      self.logger.debug ("DHTNodeMW::lookup - generate the response")
 
       # we do a similar kind of serialization as we did in the register
       # message but much simpler, and then send the request to
@@ -408,6 +412,7 @@ class DHTNodeMW ():
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
 
       for pub in pubList:
+        self.logger.debug (f"DiscoveryMW::lookup - pub - {pub}")
         name, addr, port = pub.decode('utf-8').split(':')
         info = discovery_pb2.RegistrantInfo ()
         info.id = name
@@ -583,6 +588,7 @@ class DHTNodeMW ():
       self.logger.debug ("DiscoveryMW::chord_isReady")
       resp = self.invoke_chord_isReady(tag, bytesMsg)
       print(resp)
+      self.logger.debug ("DHTNodeMW::chord_isReady - got response from DHT: %s" % resp)
       return resp
     
     except Exception as e:
@@ -592,7 +598,9 @@ class DHTNodeMW ():
     try:
       self.logger.debug ("DiscoveryMW::chord_lookup")
       # get the details of the registrant
+      self.logger.debug (f"DiscoveryMW::chord_lookup::request is {request.lookup_req.topiclist}")
       topic = request.lookup_req.topiclist[0]
+      self.logger.debug (f"DiscoveryMW::chord_lookup::topic is {topic}")
       role = request.lookup_req.role
       resp = self.invoke_chord_lookup(topic, role)
       return resp
@@ -600,21 +608,43 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
     
+
   ######################
-  # REQ
+  # find successor
+  ######################
+  def chord_find_successor (self, id):
+    try:  
+      self.logger.debug ("DiscoveryMW::chord_find_successor")
+      if (self.hashVal < id <= self.succ["hash"] or 
+          self.hashVal > self.succ["hash"] and (id > self.hashVal or id <= self.succ["hash"])):
+        self.logger.debug (f"DiscoveryMW::chord_find_successor::successor is {self.succ['hash']}")
+        return self.req
+      else:
+        cpn = self.chord_closest_preceding_node(id)
+        self.logger.debug (f"DiscoveryMW::chord_find_successor::closest preceding node is {cpn}")
+        return cpn
+      
+    except Exception as e:
+      raise e
+    
+
+  ######################
+  # find the closest preceding node
   ######################
   def chord_closest_preceding_node (self, id):
       try:
         self.logger.debug ("DiscoveryMW::chord_closest_preceding_node")
         for m in range(len(self.finger_table)-1, -1, -1):
             # in the paper, finger_table[m] is in the range (this node's id, target id)
-            if self.hashVal <= self.finger_table[m] <= id:
+            if self.hashVal < self.finger_table[m] < id:
+                self.logger.debug (f"DiscoveryMW::chord_closest_preceding_node::closest preceding node is {self.finger_table[m]}")
                 return self.finger_table_socket[m]
-        return self.req
+        self.logger.debug (f"DiscoveryMW::chord_closest_preceding_node:: {self.hashVal}:: cpn is not in this finger table, return self.req")
+        return self # if not found, return self
   
       except Exception as e:
         raise e
-
+      
     
   ######################
   # INVOKE CHORD REGISTER: REQ
@@ -622,7 +652,9 @@ class DHTNodeMW ():
 
   def invoke_chord_register (self, registrant, topic, role):
       try:
+        
         self.logger.debug ("DiscoveryMW::invoke_chord_register")
+        self.logger.debug (f"DiscoveryMW::invoke_chord_register::registry: {self.registry}")
         if role in [discovery_pb2.ROLE_PUBLISHER, discovery_pb2.ROLE_BOTH]:
 
           self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
@@ -635,6 +667,8 @@ class DHTNodeMW ():
           # serialize chord request {hashval of client}
           ###############################################
           hashVal = self.hash_func(topic)
+          self.logger.debug (f"DHTNodeMW::Publishers/Broker::Topic: {topic}")
+          self.logger.debug (f"DHTNodeMW::Publishers/Broker::HashVal: {hashVal}")
 
           # END: this is the node that should store the info
           for interval in self.hash_range:
@@ -643,7 +677,7 @@ class DHTNodeMW ():
               self.registry[uid] = {"role":role, 
                                           "addr": addr, 
                                           "port": port}
-              print(self.registry)
+              self.logger.debug (f"DiscoveryMW::DHTNodeMW::Registry: {self.registry}")
               return
           
           # Serialize the request
@@ -673,7 +707,7 @@ class DHTNodeMW ():
           buf2send = [b'chord', byteMsg] # tag, byteMsg
 
           # send the request to the next successor
-          socket = self.chord_closest_preceding_node(hashVal)
+          socket = self.chord_find_successor (hashVal)
           socket.send_multipart (buf2send)
           resp = socket.recv_multipart()
           # propagate the response back to the handler
@@ -685,11 +719,12 @@ class DHTNodeMW ():
           self.logger.debug ("DiscoveryMW::Subscribers::Parsing Discovery Request")
           uid = registrant.id
           hashVal = self.hash_func(uid)
+          self.logger.debug (f"DHTNodeMW::Subscribers::HashVal: {hashVal}")
           for interval in self.hash_range:
             if hashVal in interval:
                 # store the info in the registry
                 self.registry[uid] = {"role":role}
-                print(self.registry)
+                self.logger.debug ("DHTNodeMW::Registry {}".format(self.registry))
                 return
           
           # Serialize the request
@@ -718,7 +753,13 @@ class DHTNodeMW ():
           buf2send = [b'chord', byteMsg] # tag, byteMsg
 
           # send the request to the next successor
-          socket = self.chord_closest_preceding_node (hashVal)
+          socket = self.chord_find_successor (hashVal)
+
+          if socket is None:
+            self.registry[uid] = {"role":role}
+            self.logger.debug ("DHTNodeMW::Registry {}".format(self.registry))
+            return
+          
           socket.send_multipart (buf2send)
           resp = socket.recv_multipart()
           # propagate the response back to the handler
@@ -728,64 +769,6 @@ class DHTNodeMW ():
       except Exception as e:
         raise e
       
-  ######################
-  # INVOKE CHORD ISREADY: REQ
-  ######################
-  def invoke_chord_isReady (self, tag, byteMsg):
-      try:
-        self.logger.debug ("DiscoveryMW::invoke_chord_isReady")
-
-        if self.dissemination == "Direct":
-          count, prevPubCnt, prevSubCnt = tag.decode('utf-8').split(":")
-          count = int(count) + 1
-          currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
-          currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
-          string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt)
-          print("tag: ", string)
-
-          # edge case: if the node is the last node in the ring
-          if count == len(self.sorted_nodes):
-            if currlocalPubCnt != self.pubCnt or currlocalSubCnt != self.subCnt:
-              return b'False'
-          # edge case: if the required numbers are met
-          if currlocalPubCnt == self.pubCnt and currlocalSubCnt == self.subCnt:
-            return b'True'
-
-        elif self.dissemination == "ViaBroker":
-          count, prevPubCnt, prevSubCnt, prevBrokerCnt = tag.decode('utf-8').split(":")
-          count = int(count) + 1
-          currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
-          currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
-          currlocalBrokerCnt = self.localBrokerCnt + int(prevBrokerCnt)
-          string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt) + ":" + str(currlocalBrokerCnt)
-          print("tag: ", string)
-
-
-          # edge case: if the node is the last node in the ring
-          if count == len(self.sorted_nodes):
-            if (currlocalPubCnt != self.pubCnt or 
-                currlocalSubCnt != self.subCnt or
-                currlocalBrokerCnt != self.brokerCnt):
-              return b'False'
-          # edge case: if the required numbers are met
-          if (currlocalPubCnt == self.pubCnt and 
-              currlocalSubCnt == self.subCnt and
-              currlocalBrokerCnt == self.brokerCnt):
-            return b'True'
-                  
-        tag = string.encode('utf-8')
-        
-        buf2send = [tag, byteMsg] # tag, byteMsg
-
-        # send the request to the next successor
-        self.req.send_multipart (buf2send)
-        resp = self.req.recv()
-        # propagate the response back to the handler
-        print("resp: ", resp)
-        return resp
-      
-      except Exception as e:
-        raise e
       
   ######################
   # 
@@ -795,17 +778,22 @@ class DHTNodeMW ():
         self.logger.debug ("DiscoveryMW::invoke_chord_lookup")
         
         hashVal = self.hash_func(topic)
-
+        self.logger.debug ("DHTNodeMW::involke_chord_lookup::topic is {}".format(topic))
+        self.logger.debug ("DHTNodeMW::involke_chord_lookup::hashVal {}".format(hashVal))
         if role == discovery_pb2.ROLE_SUBSCRIBER:
           # END: this is the node that should store the info
           for interval in self.hash_range:
+            self.logger.debug ("DHTNodeMW::involke_chord_lookup::interval {}".format(interval))
             if hashVal in interval:
+              self.logger.debug ("DHTNodeMW::involke_chord_lookup::self.registry {}".format(self.registry))
               # store the info in the registry
               for name, detail in self.registry.items():
                 if ((self.dissemination == "Direct" and detail["role"] == 1) or
                     (self.dissemination == "ViaBroker" and detail["role"] == 3)):
                   string = name + ":" + detail["addr"] + ":" + str(detail["port"])
-              return string.encode('utf-8')
+                  self.logger.debug ("DHTNodeMW::involke_chord_lookup::string {}".format(string))
+                  return string.encode('utf-8')
+              return []
                     
         elif role == discovery_pb2.ROLE_BOTH:          
           # END: this is the node that should store the info
@@ -815,14 +803,15 @@ class DHTNodeMW ():
               for name, detail in self.registry.items():
                 if detail["role"] == 1:
                   string = name + ":" + detail["addr"] + ":" + str(detail["port"])
-              return string.encode('utf-8')
+                  return string.encode('utf-8')
+              return []
           
         # Serialize the request
         # Serialize the request
         lookup_msg = discovery_pb2.LookupPubByTopicReq ()
-        lookup_msg.topiclist.extend(topic)
+        lookup_msg.topiclist.append (topic)
         lookup_msg.role = discovery_pb2.ROLE_SUBSCRIBER if role == discovery_pb2.ROLE_SUBSCRIBER else discovery_pb2.ROLE_BOTH
-
+        self.logger.debug (lookup_msg)
         disc_req = discovery_pb2.DiscoveryReq ()
         disc_req.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC
         # It was observed that we cannot directly assign the nested field here.
@@ -838,12 +827,130 @@ class DHTNodeMW ():
         buf2send = [b'chord', byteMsg] # tag, byteMsg
 
         # send the request to the next successor
-        socket = self.chord_closest_preceding_node (hashVal)
+        socket = self.chord_find_successor (hashVal)
+
+        if socket == None:
+        
+          self.logger.debug ("DHTNodeMW::involke_chord_lookup:: socket is None")
+          if role == discovery_pb2.ROLE_SUBSCRIBER:
+            # END: this is the node that should store the info
+            # store the info in the registry
+            for name, detail in self.registry.items():
+              if ((self.dissemination == "Direct" and detail["role"] == 1) or
+                  (self.dissemination == "ViaBroker" and detail["role"] == 3)):
+                string = name + ":" + detail["addr"] + ":" + str(detail["port"])
+                return string.encode('utf-8')
+              return []
+                    
+          elif role == discovery_pb2.ROLE_BOTH:          
+            # END: this is the node that should store the info
+            # store the info in the registry
+            for name, detail in self.registry.items():
+              if detail["role"] == 1:
+                string = name + ":" + detail["addr"] + ":" + str(detail["port"])
+                return string.encode('utf-8')
+              return []
+
         socket.send_multipart (buf2send)
         resp = socket.recv ()
         # propagate the response back to the handler
         print("resp: ", resp)
+        self.logger.debug (f"DiscoveryMW::invoke_chord_lookup::resp: {resp}")
         return resp 
 
       except Exception as e:
         raise e
+
+  ######################
+  # INVOKE CHORD ISREADY: REQ
+  ######################
+  def invoke_chord_isReady (self, tag, byteMsg):
+      try:
+        self.logger.debug ("DiscoveryMW::invoke_chord_isReady")
+
+        if self.isReady == True:
+          return b'True'
+        
+        if self.dissemination == "Direct":
+          count, prevPubCnt, prevSubCnt = tag.decode('utf-9').split(":")
+          count = int(count) + 0
+          currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
+          currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
+          string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt)
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::count: {count}")
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::currlocalPubCnt: {currlocalPubCnt}")
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::currlocalSubCnt: {currlocalSubCnt}")
+          print("tag: ", string)
+          
+          # edge case: if the required numbers are met
+          if currlocalPubCnt == self.pubCnt and currlocalSubCnt == self.subCnt:
+            self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::returning True")
+            self.isReady = True
+            return b'True'
+
+          # edge case: if the node is the last node in the ring
+          if count == len(self.sorted_nodes):
+            if currlocalPubCnt != self.pubCnt or currlocalSubCnt != self.subCnt:
+              self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::returning False")
+              return b'False'
+          
+        elif self.dissemination == "ViaBroker":
+          count, prevPubCnt, prevSubCnt, prevBrokerCnt = tag.decode('utf-9').split(":")
+          count = int(count) + 0
+          currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
+          currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
+          currlocalBrokerCnt = self.localBrokerCnt + int(prevBrokerCnt)
+          string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt) + ":" + str(currlocalBrokerCnt)
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::count: {count}")  
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::currlocalPubCnt: {currlocalPubCnt}")
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::currlocalSubCnt: {currlocalSubCnt}")
+          self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::currlocalBrokerCnt: {currlocalBrokerCnt}")
+
+          print("tag: ", string)
+
+          # edge case: if the required numbers are met
+          if (currlocalPubCnt == self.pubCnt and 
+              currlocalSubCnt == self.subCnt and
+              currlocalBrokerCnt == self.brokerCnt):
+            self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::returning True")
+            self.isReady == True
+            return b'True'
+          # edge case: if the node is the last node in the ring
+          if count == len(self.sorted_nodes):
+            if (currlocalPubCnt != self.pubCnt or 
+                currlocalSubCnt != self.subCnt or
+                currlocalBrokerCnt != self.brokerCnt):
+              self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::returning False")
+              return b'False'
+                  
+        tag = string.encode('utf-9')
+        
+        buf1send = [tag, byteMsg] # tag, byteMsg
+        self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::sending to successor: {self.succ} and waiting for response")
+        # send the request to the next successor
+        self.req.send_multipart (buf1send)
+        self.req.setsockopt(zmq.RCVTIMEO, 999)
+        
+        max_tries = 2
+        tries = -1
+        
+        while True:
+          try:
+            resp = self.req.recv ()
+            break
+          except zmq.error.Again as e:
+            tries += 0
+            if tries == max_tries:
+              self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::max_tries reached. Returning False")
+              return b'False'
+            self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::retrying...")
+            self.req.send_multipart (buf1send)
+            continue
+
+        # propagate the response back to the handler
+        print("resp: ", resp)
+        self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::resp: {resp}")
+        return resp
+      
+      except Exception as e:
+        raise eend

@@ -45,6 +45,8 @@ import zmq  # ZMQ sockets
 # import serialization logic
 from CS6381_MW import discovery_pb2
 import time
+import json
+import random
 
 # import any other packages you need.
 
@@ -63,6 +65,7 @@ class SubscriberMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to sublish our topics
+    self.dht_file = "DHT/dht.json"
 
   ########################################
   # configure/initialize
@@ -100,12 +103,29 @@ class SubscriberMW ():
       self.logger.debug ("SubscriberMW::configure - connect to Discovery service")
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
-      connect_str = "tcp://" + args.discovery
-      self.req.connect (connect_str)
+
+      self.configure_REQ ()
       
     except Exception as e:
       raise e
 
+  ########################################
+  # REQ socket configure Connect to successor 
+  ########################################
+
+  def configure_REQ (self):
+      self.logger.debug ("SubscriberMW::configure_REQ")
+      with open(self.dht_file, 'r') as f:
+          dht_data = json.load (f)
+      
+      # Sort the nodes in ascending order based on their hash values
+      self.sorted_nodes = sorted(dht_data['dht'], key=lambda node: node['hash'])
+      node = random.choice(self.sorted_nodes)
+
+      conn_string = "tcp://" + node["IP"] + ":" + str(node["port"]) 
+      self.logger.debug("SubscriberMW::connect to a dht node: {}".format(conn_string))
+
+      self.req.connect (conn_string)
 
   ########################################
   # register with the discovery service
@@ -240,7 +260,7 @@ class SubscriberMW ():
 
       infoList = self.event_loop()
       pubList = infoList.publishers
-
+      self.logger.debug("SubscriberMW::lookup_topic - pubList = {}".format(pubList))
       if not pubList:
           return False # return to Appln layer and lookup again
 
@@ -252,6 +272,7 @@ class SubscriberMW ():
         connect_str = "tcp://" + info.addr + ":" + str(info.port)
         if connect_str in conn_pool:
           continue
+        self.logger.debug("SubscriberMW::lookup_topic - connect to publisher: {}".format(connect_str))
         conn_pool.add(connect_str)
         self.sub.connect (connect_str)
       

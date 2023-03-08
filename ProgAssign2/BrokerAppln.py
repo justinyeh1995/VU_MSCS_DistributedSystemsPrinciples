@@ -129,6 +129,7 @@ class PublisherAppln ():
       self.logger.debug ("BrokerAppln::driver - register with the discovery service")
       result = self.mw_obj.register (self.name, self.topiclist)
       self.logger.debug ("BrokerAppln::driver - result of registration".format (result))
+      time.sleep (5)  # sleep between calls so that we don't make excessive calls
 
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("BrokerAppln::driver - check if are ready to go")
@@ -193,6 +194,8 @@ def parseCmdLineArgs ():
   parser.add_argument ("-d", "--discovery", default="localhost:5555", help="IP Addr:Port combo for the discovery service, default localhost:5555")
 
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
+
+  parser.add_argument ("-j", "--J", default="dht.json", type=str, help="the json file containing the dht information")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   
