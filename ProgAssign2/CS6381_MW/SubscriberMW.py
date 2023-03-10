@@ -225,7 +225,7 @@ class SubscriberMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'', b"client" + b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
       
       # now go to our event loop to receive a response to this request
       self.logger.debug ("SubscriberMW::is_ready - now wait for reply")
@@ -258,7 +258,7 @@ class SubscriberMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'', b"client" + b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
 
       infoList = self.event_loop()
       pubList = infoList.publishers

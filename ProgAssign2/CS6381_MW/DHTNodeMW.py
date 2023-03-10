@@ -294,8 +294,9 @@ class DHTNodeMW ():
 
       pubList = []
       for topic in topiclist:
-        pubs = self.invoke_chord_lookup (topic, role)
+        pubs = self.invoke_chord_lookup (identities, topic, role)
         print(pubs)
+        pubs = pubs.split(b",")
         pubList.extend(pubs)
 
       return pubList
@@ -468,7 +469,6 @@ class DHTNodeMW ():
           self.logger.debug ("DiscoveryMW::event_loop - wait for a request from client")
           packet = self.rep.recv_multipart ()
           identities = packet[0]
-          print(identities) 
           tag, bytesMsg = packet[-1].split(b'||')
           print(tag)
           print(bytesMsg)
@@ -478,7 +478,8 @@ class DHTNodeMW ():
           # now send this to our discovery service
           self.logger.debug ("DiscoveryMW:: send stringified buffer back to {}".format (tag))
           print(resp)
-          self.rep.send_multipart ([identities, b"", tag +b"||" +resp])  # we use the "send" method of ZMQ that sends the bytes
+          print(identities)
+          self.rep.send_multipart ([identities, b"", tag + b"||" +resp])  # we use the "send" method of ZMQ that sends the bytes
 
     except Exception as e:
       raise e
@@ -811,25 +812,29 @@ class DHTNodeMW ():
             if hashVal in interval:
               self.logger.debug ("DHTNodeMW::involke_chord_lookup::self.registry {}".format(self.registry))
               # store the info in the registry
+              ret = []
               for name, detail in self.registry.items():
                 if ((self.dissemination == "Direct" and detail["role"] == 1) or
                     (self.dissemination == "ViaBroker" and detail["role"] == 3)):
                   string = name + ":" + detail["addr"] + ":" + str(detail["port"])
                   self.logger.debug ("DHTNodeMW::involke_chord_lookup::string {}".format(string))
-                  return string.encode('utf-8')
-              return []
+                  ret.append(string)
+              ret = ",".join(ret)  
+              return ret.encode('utf-8')
                     
         elif role == discovery_pb2.ROLE_BOTH:          
           # END: this is the node that should store the info
           for interval in self.hash_range:
             if hashVal in interval:
               # store the info in the registry
+              ret = []
               for name, detail in self.registry.items():
                 if detail["role"] == 1:
                   string = name + ":" + detail["addr"] + ":" + str(detail["port"])
-                  return string.encode('utf-8')
-              return []
-          
+                  ret.append(string)
+              ret = ",".join(ret)
+              return ret.encode('utf-8')
+              
         # Serialize the request
         # Serialize the request
         lookup_msg = discovery_pb2.LookupPubByTopicReq ()
@@ -851,12 +856,17 @@ class DHTNodeMW ():
         buf2send = [identities, b'chord' + b"||" + byteMsg] # tag, byteMsg
 
         # send the request to the next successor
-        socket = self.chord_find_successor (hashVal)
 
-        socket.send_multipart (buf2send)
-        packet = socket.recv_multipart ()
-        resp = packet[-1].split(b'||')[-1]
+
+        tcp = self.chord_find_successor (hashVal)
+        self.async_req.connect (tcp)
+        self.logger.debug (f"DiscoveryMW::invoke_chord_register::send to the next node: {tcp}")
+        self.async_req.send_multipart (buf2send)
+        self.logger.debug ("DiscoveryMW::invoke_chord_register::waiting for response...")
         
+        packet = self.async_req.recv_multipart ()
+        resp = packet[-1].split(b'||')[-1]
+        self.async_req.disconnect (tcp)
         # propagate the response back to the handler
         print("resp: ", resp)
         self.logger.debug (f"DiscoveryMW::invoke_chord_lookup::resp: {resp}")
