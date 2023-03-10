@@ -82,7 +82,7 @@ class PublisherMW ():
       
       # Now acquire the REQ and PUB sockets
       self.logger.debug ("PublisherMW::configure - obtain REQ and PUB sockets")
-      self.req = context.socket (zmq.REQ)
+      self.req = context.socket (zmq.DEALER)
       self.pub = context.socket (zmq.PUB)
 
       # register the REQ socket for incoming events
@@ -94,7 +94,7 @@ class PublisherMW ():
       self.logger.debug ("PublisherMW::configure - connect to Discovery service")
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
-      self.configure_REQ()
+      self.configure_REQ(args)
       
       # Since we are the publisher, the best practice as suggested in ZMQ is for us to
       # "bind" to the PUB socket
@@ -111,8 +111,10 @@ class PublisherMW ():
   # REQ socket configure Connect to successor 
   ########################################
 
-  def configure_REQ (self):
+  def configure_REQ (self, args):
       self.logger.debug ("PublisherMW::configure_REQ")
+      identity = args.addr + str(args.port)
+      self.req.setsockopt(zmq.IDENTITY, identity.encode('utf-8'))
       with open(self.dht_file, 'r') as f:
           dht_data = json.load (f)
       
@@ -177,7 +179,7 @@ class PublisherMW ():
 
       # now send this to our discovery service
       self.logger.debug ("PublisherMW::register - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client', buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b"", b'client' + b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
 
       # now go to our event loop to receive a response to this request
       self.logger.debug ("PublisherMW::register - now wait for reply")
@@ -224,7 +226,7 @@ class PublisherMW ():
 
       # now send this to our discovery service
       self.logger.debug ("PublisherMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'client', buf2send])  # we use the "send" method of ZMQ that sends the bytes
       
       # now go to our event loop to receive a response to this request
       self.logger.debug ("PublisherMW::is_ready - now wait for reply")
@@ -263,8 +265,8 @@ class PublisherMW ():
       self.logger.debug ("PublisherMW::handle_reply")
 
       # let us first receive all the bytes
-      bytesRcvd = self.req.recv ()
-
+      packet = self.req.recv_multipart () 
+      bytesRcvd = packet[-1].split(b"||") [-1]
       # now use protobuf to deserialize the bytes
       disc_resp = discovery_pb2.DiscoveryResp ()
       disc_resp.ParseFromString (bytesRcvd)

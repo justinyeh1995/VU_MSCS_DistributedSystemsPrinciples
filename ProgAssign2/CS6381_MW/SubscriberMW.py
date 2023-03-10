@@ -91,7 +91,7 @@ class SubscriberMW ():
       
       # Now acquire the REQ and SUB sockets
       self.logger.debug ("SubscriberMW::configure - obtain REQ and SUB sockets")
-      self.req = context.socket (zmq.REQ)
+      self.req = context.socket (zmq.DEALER)
       self.sub = context.socket (zmq.SUB)
 
       # register the REQ socket for incoming events
@@ -104,7 +104,7 @@ class SubscriberMW ():
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
 
-      self.configure_REQ ()
+      self.configure_REQ (args)
       
     except Exception as e:
       raise e
@@ -113,8 +113,10 @@ class SubscriberMW ():
   # REQ socket configure Connect to successor 
   ########################################
 
-  def configure_REQ (self):
+  def configure_REQ (self, args):
       self.logger.debug ("SubscriberMW::configure_REQ")
+      self.req.setsockopt(zmq.IDENTITY, args.name.encode('utf-8'))
+
       with open(self.dht_file, 'r') as f:
           dht_data = json.load (f)
       
@@ -176,7 +178,7 @@ class SubscriberMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::register - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b"client",buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'', b"client" + b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
 
       # now go to our event loop to receive a response to this request
       self.logger.debug ("SubscriberMW::register - now wait for reply")
@@ -311,7 +313,8 @@ class SubscriberMW ():
       self.logger.debug ("SubscriberMW::handle_reply")
 
       # let us first receive all the bytes
-      bytesRcvd = self.req.recv ()
+      packet = self.req.recv_multipart () 
+      bytesRcvd = packet[-1].split(b"||") [-1]
 
       # now use protobuf to deserialize the bytes
       disc_resp = discovery_pb2.DiscoveryResp ()

@@ -69,6 +69,8 @@ class DHTNodeMW ():
     self.hash_range = None
     self.finger_table = None
     self.finger_table_socket = list()
+    self.finger_table_async_socket = list()
+    self.finger_table_tcp = list()
     self.isReady = False
 
   ########################################
@@ -96,11 +98,17 @@ class DHTNodeMW ():
       
       # Now acquire the REQ socket
       self.logger.debug ("DiscoveryMW::configure - obtain REP socket")
-      self.rep = context.socket (zmq.REP)
+      self.rep = context.socket (zmq.ROUTER)
+      self.poller.register (self.rep, zmq.POLLIN)
+
+      # self.async_rep = context.socket (zmq.ROUTER) # for async reply
       
       # Now acquire the REQ socket
       self.logger.debug ("DiscoveryMW::configure - obtain REPQ socket")
-      self.req = context.socket (zmq.REQ)
+      
+      context = zmq.Context ()  # returns a singleton object
+      self.async_req = context.socket (zmq.DEALER) # for async request
+      self.poller.register (self.async_req, zmq.POLLIN)
 
       self.logger.debug ("PublisherMW::configure - register the REQ socket for incoming replies")
       # self.poller.register (self.req, zmq.POLLIN)
@@ -117,63 +125,62 @@ class DHTNodeMW ():
       self.pubCnt = args.P
       self.subCnt = args.S
       self.bits_hash = int(config['BitHash']['M'])
-      #self.hf = HashFunction(self.bits_hash)
 
-      self.configure_REQ (args)
-      self.configure_FingerTable (args)
-          
+      self.configure_AsyncREQ (args)
+      self.configure_AsyncFingerTable (args)
+
     except Exception as e:
       raise e
 
   ########################################
   # REQ socket configure Connect to successor 
   ########################################
-
-  def configure_REQ (self, args):
-      self.logger.debug ("DiscoveryMW::configure_REQ")
+  def configure_AsyncREQ (self, args):
+    try:
+      self.logger.debug ("DHTNodeMW::configure_AsyncREQ")
       with open(self.dht_file, 'r') as f:
           dht_data = json.load (f)
       
       # Sort the nodes in ascending order based on their hash values
       self.sorted_nodes = sorted(dht_data['dht'], key=lambda node: node['hash'])
-      self.logger.debug ("DiscoveryMW::configure_REQ - sorted_nodes: %s", [node["hash"] for node in self.sorted_nodes])
+      self.logger.debug ("DHTNodeMW::configure_AsyncREQ - sorted_nodes: %s", [node["hash"] for node in self.sorted_nodes])
       for i, node in enumerate(self.sorted_nodes):
           if node["id"] == args.name:
               self.hashVal = node["hash"]
               self.tcp = node["IP"] + ":" + str(node["port"])
               self.succ = self.sorted_nodes[(i+1)%len(self.sorted_nodes)]
               self.pred = self.sorted_nodes[(i-1)%len(self.sorted_nodes)]
-              self.hash_range = [range(self.pred["hash"]+1, self.hashVal)] if self.pred["hash"] < self.hashVal else [range(self.pred["hash"]+1, 2**self.bits_hash-1),range(0, self.hashVal)]
+              self.hash_range = [range(self.pred["hash"]+1, self.hashVal+1)] if self.pred["hash"] < self.hashVal else [range(self.pred["hash"]+1, 2**self.bits_hash-1+1),range(0, self.hashVal+1)] ## check again
               break
-      self.logger.debug ("DiscoveryMW::configure_REQ - hashVal: %s, tcp: %s, succ: %s, pred: %s, hash_range: %s", self.hashVal, self.tcp, self.succ, self.pred, self.hash_range)
-      conn_string = "tcp://" + self.succ["IP"] + ":" + str(self.succ["port"]) 
-      self.req.connect (conn_string)
+      identity = args.name
+      self.async_req.setsockopt(zmq.IDENTITY, identity.encode('utf-8'))
+      self.async_req.connect("tcp://"+self.succ["IP"]+":"+str(self.succ["port"]))
+      self.logger.debug ("DHTNodeMW::configure_AsyncReq - connect to successor: %s", self.succ["IP"]+":"+str(self.succ["port"]))
+    except Exception as e:
+      raise e
     
-  ########################################
-  # Finger Table socket configure
-  ########################################
-    
-  def configure_FingerTable (self, args):
-      self.logger.debug ("DiscoveryMW::configure_FingerTable")
-      context = zmq.Context ()  # returns a singleton object
-      
+  def configure_AsyncFingerTable (self, args):
+    try:
+      self.logger.debug ("DHTNodeMW::configure_AsyncFinTable - connect to finger table")
+            
       with open(self.finger_table_file, 'r') as f:
           finger_table_data = json.load (f)
       
       hash2tcp = dict()
       for node in finger_table_data['finger_tables']:
           hash2tcp[node["hash"]] = node["TCP"]
+      self.logger.debug ("DiHTNodeMW::configure_AsyncFinTable - hash2tcp: {}".format(hash2tcp))
 
       for node in finger_table_data['finger_tables']:
           if node["id"] == args.name:
               self.finger_table = node["finger_table"]
               for h in node['finger_table']:
                   conn_string = "tcp://" + hash2tcp[h]
-                  socket = context.socket (zmq.REQ)
-                  socket.connect (conn_string)
-                  self.finger_table_socket.append(socket)
-              self.logger.debug ("DiscoveryMW::configure_FingerTable - finger_table: {}".format(self.finger_table))
+                  self.finger_table_tcp.append(conn_string)
+              self.logger.debug ("DHTNodeMW::configure_FingerTable - finger_table: {}".format(self.finger_table))
               break
+    except Exception as e:
+      raise e
 
 
   #################
@@ -205,7 +212,7 @@ class DHTNodeMW ():
   # save info to storage 
   ########################################
 
-  def register (self, request):
+  def register (self, identities, request):
     '''handle registrations'''
     try:
       self.logger.debug ("DiscoveryMW::Providing Registration service")
@@ -223,7 +230,7 @@ class DHTNodeMW ():
         topiclist = req_info.topiclist
 
         for topic in topiclist:
-          resp = self.invoke_chord_register (registrant, topic, role)
+          resp = self.invoke_chord_register (identities, registrant, topic, role)
           print(resp)
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
@@ -231,7 +238,7 @@ class DHTNodeMW ():
         self.localSubCnt += 1
 
         self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
-        resp = self.invoke_chord_register (registrant, "None", role)
+        resp = self.invoke_chord_register (identities, registrant, "None", role)
         print(resp)
 
       elif role == discovery_pb2.ROLE_BOTH:
@@ -242,7 +249,7 @@ class DHTNodeMW ():
 
         topiclist = req_info.topiclist
         for topic in topiclist:
-          resp = self.invoke_chord_register (registrant, topic, role)
+          resp = self.invoke_chord_register (identities, registrant, topic, role)
           print(resp)
 
       self.logger.debug ("DiscoveryMW::Registration info")
@@ -254,7 +261,7 @@ class DHTNodeMW ():
   ########################################
   # isReady
   ########################################
-  def isReady (self, byteMsg):
+  def isReady (self, identities, byteMsg):
     '''handle registrations'''
     try:
       self.logger.debug ("DiscoveryMW::isReady")
@@ -274,7 +281,7 @@ class DHTNodeMW ():
   ########################################
   #
   ########################################
-  def lookup (self, request):
+  def lookup (self, identities, request):
     '''handle registrations'''
     try:
       self.logger.debug ("DiscoveryMW::lookup")
@@ -447,7 +454,7 @@ class DHTNodeMW ():
   # run the event loop where we expect to receive a reply to a sent request
   #################################################################
 
-  def event_loop (self, timeout=None):
+  def event_loop (self):
 
     try:
       self.logger.debug ("DiscoveryMW::event_loop - run the event loop")
@@ -456,16 +463,22 @@ class DHTNodeMW ():
        
         # REP socket.
         # need to set time out to 1 second so that we can check if we need to exit
-
-        self.logger.debug ("DiscoveryMW::event_loop - wait for a request from client")
-        tag, bytesMsg = self.rep.recv_multipart () 
-        print(tag)
-        print(bytesMsg)
-        resp = self.demultiplex_request (tag, bytesMsg)
-        # now send this to our discovery service
-        self.logger.debug ("DiscoveryMW:: send stringified buffer back to publishers/subscribers")
-        print(resp)
-        self.rep.send (resp)  # we use the "send" method of ZMQ that sends the bytes
+        events = dict(self.poller.poll())
+        if self.rep in events:
+          self.logger.debug ("DiscoveryMW::event_loop - wait for a request from client")
+          packet = self.rep.recv_multipart ()
+          identities = packet[0]
+          print(identities) 
+          tag, bytesMsg = packet[-1].split(b'||')
+          print(tag)
+          print(bytesMsg)
+          self.logger.debug ("DiscoveryMW::event_loop - got a request from client")
+          self.logger.debug ("DiscoveryMW::event_loop - tag = {}".format (tag))
+          resp = self.demultiplex_request (identities, tag, bytesMsg)
+          # now send this to our discovery service
+          self.logger.debug ("DiscoveryMW:: send stringified buffer back to {}".format (tag))
+          print(resp)
+          self.rep.send_multipart ([identities, b"", tag +b"||" +resp])  # we use the "send" method of ZMQ that sends the bytes
 
     except Exception as e:
       raise e
@@ -475,12 +488,12 @@ class DHTNodeMW ():
   # desicde which(client/dht) request we r handling
   #################################################
 
-  def demultiplex_request (self, tag, bytesMsg):
+  def demultiplex_request (self, identities, tag, bytesMsg):
 
     if tag == b'client':
-      resp = self.handle_request (bytesMsg)
+      resp = self.handle_request (identities, bytesMsg)
     else:
-      resp = self.handle_chord_request (tag, bytesMsg)
+      resp = self.handle_chord_request (identities, tag, bytesMsg)
 
     return resp
 
@@ -489,7 +502,7 @@ class DHTNodeMW ():
   # handle an incoming requst from client
   #################################################################
 
-  def handle_request (self, bytesMsg):
+  def handle_request (self, identities, bytesMsg):
 
     try:
       self.logger.debug ("DiscoveryMW::handle_client_request")
@@ -502,18 +515,18 @@ class DHTNodeMW ():
 
       if (request.msg_type == discovery_pb2.TYPE_REGISTER):
         # registraions
-        self.register (request)
+        self.register (identities, request)
         # this is a response to register message
         resp = self.gen_register_resp()
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        status = self.isReady (bytesMsg)
+        status = self.isReady (identities, bytesMsg)
         resp = self.gen_ready_resp(status)
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        pubList = self.lookup (request) 
+        pubList = self.lookup (identities, request) 
         resp = self.gen_lookup_resp(pubList)
         return resp # relations with proto definitions
       else: # anything else is unrecognizable by this object
@@ -528,7 +541,7 @@ class DHTNodeMW ():
   # handle an incoming chord request
   #################################################################
 
-  def handle_chord_request (self, tag, bytesMsg):
+  def handle_chord_request (self, identities, tag, bytesMsg):
 
     try:
       self.logger.debug ("DiscoveryMW::handle_dht_request")
@@ -542,18 +555,18 @@ class DHTNodeMW ():
 
       if (request.msg_type == discovery_pb2.TYPE_REGISTER):
         # registraions
-        self.chord_register(request)
+        self.chord_register(identities, request)
         # this is a response to register message
         resp = self.gen_register_resp()
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        status = self.chord_isReady(tag, bytesMsg)
+        status = self.chord_isReady(identities, tag, bytesMsg)
         return status
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        pub = self.chord_lookup(request)
-        return pub # relations with proto definitions
+        pubs = self.chord_lookup(identities, request)
+        return pubs # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")
@@ -565,7 +578,7 @@ class DHTNodeMW ():
   #
   ######
   
-  def chord_register(self, request):
+  def chord_register(self, identities, request):
     try:
       self.logger.debug ("DiscoveryMW::chord_register")
       # get the details of the registrant
@@ -574,8 +587,8 @@ class DHTNodeMW ():
       registrant = req_info.info
       role = req_info.role 
       topic = req_info.topiclist[0]
-      resp = self.invoke_chord_register(registrant, topic, role)
-      return resp
+      self.invoke_chord_register(identities, registrant, topic, role)
+      return
     
     except Exception as e:
       raise e
@@ -583,10 +596,10 @@ class DHTNodeMW ():
   ######
   #
   ######
-  def chord_isReady(self, tag, bytesMsg):
+  def chord_isReady(self, identities, tag, bytesMsg):
     try:
       self.logger.debug ("DiscoveryMW::chord_isReady")
-      resp = self.invoke_chord_isReady(tag, bytesMsg)
+      resp = self.invoke_chord_isReady(identities, tag, bytesMsg)
       print(resp)
       self.logger.debug ("DHTNodeMW::chord_isReady - got response from DHT: %s" % resp)
       return resp
@@ -594,7 +607,7 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
   
-  def chord_lookup(self, request):
+  def chord_lookup(self, identities, request):
     try:
       self.logger.debug ("DiscoveryMW::chord_lookup")
       # get the details of the registrant
@@ -602,7 +615,7 @@ class DHTNodeMW ():
       topic = request.lookup_req.topiclist[0]
       self.logger.debug (f"DiscoveryMW::chord_lookup::topic is {topic}")
       role = request.lookup_req.role
-      resp = self.invoke_chord_lookup(topic, role)
+      resp = self.invoke_chord_lookup(identities, topic, role)
       return resp
     
     except Exception as e:
@@ -615,13 +628,15 @@ class DHTNodeMW ():
   def chord_find_successor (self, id):
     try:  
       self.logger.debug ("DiscoveryMW::chord_find_successor")
+
       if (self.hashVal < id <= self.succ["hash"] or 
           self.hashVal > self.succ["hash"] and (id > self.hashVal or id <= self.succ["hash"])):
         self.logger.debug (f"DiscoveryMW::chord_find_successor::successor is {self.succ['hash']}")
-        return self.req
+        return self.finger_table_tcp[0]
+
       else:
         cpn = self.chord_closest_preceding_node(id)
-        self.logger.debug (f"DiscoveryMW::chord_find_successor::closest preceding node is {cpn}")
+        self.logger.debug (f"DiscoveryMW::chord_find_successor::return preceding node.")
         return cpn
       
     except Exception as e:
@@ -634,13 +649,14 @@ class DHTNodeMW ():
   def chord_closest_preceding_node (self, id):
       try:
         self.logger.debug ("DiscoveryMW::chord_closest_preceding_node")
+
         for m in range(len(self.finger_table)-1, -1, -1):
-            # in the paper, finger_table[m] is in the range (this node's id, target id)
             if self.hashVal < self.finger_table[m] < id:
                 self.logger.debug (f"DiscoveryMW::chord_closest_preceding_node::closest preceding node is {self.finger_table[m]}")
-                return self.finger_table_socket[m]
-        self.logger.debug (f"DiscoveryMW::chord_closest_preceding_node:: {self.hashVal}:: cpn is not in this finger table, return self.req")
-        return self # if not found, return self
+                return self.finger_table_tcp[m]
+
+        self.logger.debug (f"DiscoveryMW::chord_closest_preceding_node:: {self.hashVal}:: cpn is not in this finger table, send to its successor")
+        return self.finger_table_tcp[0]
   
       except Exception as e:
         raise e
@@ -650,11 +666,10 @@ class DHTNodeMW ():
   # INVOKE CHORD REGISTER: REQ
   ######################
 
-  def invoke_chord_register (self, registrant, topic, role):
+  def invoke_chord_register (self, identities, registrant, topic, role):
       try:
         
         self.logger.debug ("DiscoveryMW::invoke_chord_register")
-        self.logger.debug (f"DiscoveryMW::invoke_chord_register::registry: {self.registry}")
         if role in [discovery_pb2.ROLE_PUBLISHER, discovery_pb2.ROLE_BOTH]:
 
           self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
@@ -704,15 +719,20 @@ class DHTNodeMW ():
           byteMsg = chord_req.SerializeToString ()
           # end of serialization
 
-          buf2send = [b'chord', byteMsg] # tag, byteMsg
+          buf2send = [identities, b"", b"chord" + b"||" + byteMsg] # tag, byteMsg
 
           # send the request to the next successor
-          socket = self.chord_find_successor (hashVal)
-          socket.send_multipart (buf2send)
-          resp = socket.recv_multipart()
+          tcp = self.chord_find_successor (hashVal)
+          self.async_req.connect (tcp)
+          self.logger.debug (f"DiscoveryMW::invoke_chord_register::send to the next node: {tcp}")
+          self.async_req.send_multipart (buf2send)
+          self.logger.debug ("DiscoveryMW::invoke_chord_register::waiting for response...")
+          resp = self.async_req.recv_multipart()
+          self.async_req.disconnect (tcp)
+          self.logger.debug (f"DiscoveryMW::invoke_chord_register::recv from the next node: {tcp}")
           # propagate the response back to the handler
           print("resp: ", resp)
-          return 
+          return resp
         
         # subscriber
         elif role == discovery_pb2.ROLE_SUBSCRIBER:
@@ -725,7 +745,7 @@ class DHTNodeMW ():
                 # store the info in the registry
                 self.registry[uid] = {"role":role}
                 self.logger.debug ("DHTNodeMW::Registry {}".format(self.registry))
-                return
+                return 
           
           # Serialize the request
           registrant_info = discovery_pb2.RegistrantInfo ()
@@ -750,21 +770,25 @@ class DHTNodeMW ():
           # a real string
           byteMsg = chord_req.SerializeToString ()
 
-          buf2send = [b'chord', byteMsg] # tag, byteMsg
+          buf2send = [identities, b"", b"chord" + b"||" + byteMsg] # tag, byteMsg
 
           # send the request to the next successor
-          socket = self.chord_find_successor (hashVal)
+          tcp = self.chord_find_successor (hashVal)
+          self.async_req.connect (tcp)
+          self.logger.debug (f"DiscoveryMW::invoke_chord_register::send to the next node: {tcp}")
+          self.async_req.send_multipart (buf2send)
+          self.logger.debug ("DiscoveryMW::invoke_chord_register::waiting for response...")
 
-          if socket is None:
-            self.registry[uid] = {"role":role}
-            self.logger.debug ("DHTNodeMW::Registry {}".format(self.registry))
-            return
-          
-          socket.send_multipart (buf2send)
-          resp = socket.recv_multipart()
-          # propagate the response back to the handler
-          print("resp: ", resp)
-          return 
+          try: 
+            self.poller.register (self.async_req, zmq.POLLIN)
+            events = dict(self.poller.poll())
+            if self.async_req in events:
+              resp = self.async_req.recv_multipart()
+          except zmq.error.ZMQError as e:
+            self.logger.error (f"DiscoveryMW::invoke_chord_register::recv error: {e}")
+          self.async_req.disconnect (tcp)
+          self.logger.debug (f"DiscoveryMW::invoke_chord_register::recv from the next node: {tcp}")
+          return resp
         
       except Exception as e:
         raise e
@@ -773,7 +797,7 @@ class DHTNodeMW ():
   ######################
   # 
   ######################
-  def invoke_chord_lookup (self, topic, role):
+  def invoke_chord_lookup (self, identities, topic, role):
       try:
         self.logger.debug ("DiscoveryMW::invoke_chord_lookup")
         
@@ -824,35 +848,15 @@ class DHTNodeMW ():
         byteMsg = disc_req.SerializeToString ()
         self.logger.debug ("Stringified serialized buf = {}".format (byteMsg))
 
-        buf2send = [b'chord', byteMsg] # tag, byteMsg
+        buf2send = [identities, b'chord' + b"||" + byteMsg] # tag, byteMsg
 
         # send the request to the next successor
         socket = self.chord_find_successor (hashVal)
 
-        if socket == None:
-        
-          self.logger.debug ("DHTNodeMW::involke_chord_lookup:: socket is None")
-          if role == discovery_pb2.ROLE_SUBSCRIBER:
-            # END: this is the node that should store the info
-            # store the info in the registry
-            for name, detail in self.registry.items():
-              if ((self.dissemination == "Direct" and detail["role"] == 1) or
-                  (self.dissemination == "ViaBroker" and detail["role"] == 3)):
-                string = name + ":" + detail["addr"] + ":" + str(detail["port"])
-                return string.encode('utf-8')
-              return []
-                    
-          elif role == discovery_pb2.ROLE_BOTH:          
-            # END: this is the node that should store the info
-            # store the info in the registry
-            for name, detail in self.registry.items():
-              if detail["role"] == 1:
-                string = name + ":" + detail["addr"] + ":" + str(detail["port"])
-                return string.encode('utf-8')
-              return []
-
         socket.send_multipart (buf2send)
-        resp = socket.recv ()
+        packet = socket.recv_multipart ()
+        resp = packet[-1].split(b'||')[-1]
+        
         # propagate the response back to the handler
         print("resp: ", resp)
         self.logger.debug (f"DiscoveryMW::invoke_chord_lookup::resp: {resp}")
@@ -948,9 +952,8 @@ class DHTNodeMW ():
             continue
 
         # propagate the response back to the handler
-        print("resp: ", resp)
         self.logger.debug (f"DiscoveryMW::invoke_chord_isReady::resp: {resp}")
         return resp
       
       except Exception as e:
-        raise eend
+        raise e
