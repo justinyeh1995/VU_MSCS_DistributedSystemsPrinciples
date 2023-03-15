@@ -113,7 +113,7 @@ class PublisherMW ():
 
   def configure_REQ (self, args):
       self.logger.debug ("PublisherMW::configure_REQ")
-      identity = args.addr + str(args.port)
+      identity = args.name
       self.req.setsockopt(zmq.IDENTITY, identity.encode('utf-8'))
       with open(self.dht_file, 'r') as f:
           dht_data = json.load (f)
