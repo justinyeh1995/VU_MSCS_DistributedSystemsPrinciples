@@ -121,7 +121,7 @@ class PublisherMW ():
       # Sort the nodes in ascending order based on their hash values
       self.sorted_nodes = sorted(dht_data['dht'], key=lambda node: node['hash'])
       node = random.choice(self.sorted_nodes)
-
+      #node = self.sorted_nodes[0]
       conn_string = "tcp://" + node["IP"] + ":" + str(node["port"]) 
       self.logger.debug ("PublisherMW::configure_REQ - connect to Discovery service at {}".format(conn_string))
       self.req.connect (conn_string)

@@ -29,6 +29,7 @@ import collections
 import hashlib
 import json
 import random
+import time
 
 
 # import serialization logic
@@ -71,6 +72,7 @@ class DHTNodeMW ():
     self.finger_table = None
     self.finger_table_sockets = list()
     self.finger_table_tcp = list()
+    self.finger_table_names = list()
     self.isReady = False
 
   ########################################
@@ -167,23 +169,30 @@ class DHTNodeMW ():
       with open(self.finger_table_file, 'r') as f:
           finger_table_data = json.load (f)
       
-      hash2tcp = dict()
+      hash2tcp = {}
       for node in finger_table_data['finger_tables']:
-          hash2tcp[node["hash"]] = node["TCP"]
+          hash2tcp[node["hash"]] = (node["id"], node["TCP"])
       self.logger.debug ("DiHTNodeMW::configure_AsyncFinTable - hash2tcp: {}".format(hash2tcp))
 
       for node in finger_table_data['finger_tables']:
           if node["id"] == args.name:
               self.finger_table = node["finger_table"]
+              count = 0
               for h in node['finger_table']:
-                  conn_string = "tcp://" + hash2tcp[h]
+                  conn_string = "tcp://" + hash2tcp[h][1]
+                  self.finger_table_names.append(hash2tcp[h][0])
                   self.finger_table_tcp.append(conn_string)
+
                   context = zmq.Context ()  # returns a singleton object
                   sock = context.socket (zmq.DEALER) # for async request
-                  identity = args.name
-                  sock.setsockopt(zmq.IDENTITY, identity.encode('utf-8'))
+                  uid = args.name + ":" + str(count)
+                  count += 1
+                  identity = uid.encode('utf-8')
+                  sock.setsockopt(zmq.IDENTITY, identity)
                   sock.connect(conn_string)
+                  self.poller.register (sock, zmq.POLLIN)
                   self.finger_table_sockets.append(sock)
+
               self.logger.debug ("DHTNodeMW::configure_FingerTable - finger_table: {}".format(self.finger_table))
               break
     except Exception as e:
@@ -237,16 +246,16 @@ class DHTNodeMW ():
         topiclist = req_info.topiclist
 
         for topic in topiclist:
-          resp = self.invoke_chord_register (identities, registrant, topic, role)
-          print(resp)
+          isLastNode, name = self.invoke_chord_register (identities, registrant, topic, role)
+          
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
         
         self.localSubCnt += 1
 
         self.logger.debug ("DHTNodeMW::Storing Subscriber's information")
-        resp = self.invoke_chord_register (identities, registrant, "None", role)
-        print(resp)
+        isLastNode, name = self.invoke_chord_register (identities, registrant, "None", role)
+        
 
       elif role == discovery_pb2.ROLE_BOTH:
         
@@ -256,11 +265,12 @@ class DHTNodeMW ():
 
         topiclist = req_info.topiclist
         for topic in topiclist:
-          resp = self.invoke_chord_register (identities, registrant, topic, role)
-          print(resp)
+          isLastNode, name = self.invoke_chord_register (identities, registrant, topic, role)
+          
 
-      self.logger.debug ("DHTNodeMW::Registration info")
-      print(self.registry)
+      self.logger.debug ("DHTNodeMW::Registration Done")
+      
+      return isLastNode, name
 
     except Exception as e:
       raise e
@@ -472,7 +482,7 @@ class DHTNodeMW ():
         # REP socket.
         # need to set time out to 1 second so that we can check if we need to exit
         events = dict(self.poller.poll())
-
+        self.logger.debug ("DHTNodeMW::event_loop - events = {}".format (events))
         if self.rep in events:
           self.logger.debug ("DHTNodeMW::event_loop - wait for a request from the previous hop")
           
@@ -509,8 +519,10 @@ class DHTNodeMW ():
           
           # if we are the last node in the chain, we need to send the response back to the client
           # otherwise, we need to forward the response to the next hop
-          
-        if events != {} and self.rep not in events:
+        for socket in list(events):
+          if socket == self.rep:
+            continue
+          # we got a reply from a chord node. We need to  
           self.logger.debug ("DHTNodeMW::event_loop - got a reply from a chord node")
           self.logger.debug (events)
 
@@ -522,7 +534,7 @@ class DHTNodeMW ():
           identities = reply[:-2]
           tag, bytesMsg = reply[-1].split(b'||')
 
-          self.rep.send_multipart (identities + [b"", tag + b"||" + reply])  # we use the "send" method of ZMQ that sends the bytes
+          self.rep.send_multipart (identities + [b"", tag + b"||" + bytesMsg])  # we use the "send" method of ZMQ that sends the bytes
 
         sleep_time = random.choice([0.1, 0.2, 0.3, 0.4, 0.5])
         time.sleep(sleep_time)
@@ -652,7 +664,6 @@ class DHTNodeMW ():
   def chord_lookup(self, identities, request):
     try:
       self.logger.debug ("DHTNodeMW::chord_lookup")
-      # get the details of the registrant
       self.logger.debug (f"DHTNodeMW::chord_lookup::request is {request.lookup_req.topiclist}")
       topic = request.lookup_req.topiclist[0]
       self.logger.debug (f"DHTNodeMW::chord_lookup::topic is {topic}")
@@ -674,12 +685,12 @@ class DHTNodeMW ():
       if (self.hashVal < id <= self.succ["hash"] or 
           self.hashVal > self.succ["hash"] and (id > self.hashVal or id <= self.succ["hash"])):
         self.logger.debug (f"DHTNodeMW::chord_find_successor::successor is {self.succ['hash']}")
-        return self.finger_table_tcp[0]
+        return self.finger_table_sockets[0], self.finger_table_names[0], self.finger_table_tcp[0]
 
       else:
-        cpn = self.chord_closest_preceding_node(id)
+        cpn, id, tcp = self.chord_closest_preceding_node(id)
         self.logger.debug (f"DHTNodeMW::chord_find_successor::return preceding node.")
-        return cpn
+        return cpn, id, tcp 
       
     except Exception as e:
       raise e
@@ -695,10 +706,10 @@ class DHTNodeMW ():
         for m in range(len(self.finger_table)-1, -1, -1):
             if self.hashVal < self.finger_table[m] < id:
                 self.logger.debug (f"DHTNodeMW::chord_closest_preceding_node::closest preceding node is {self.finger_table[m]}")
-                return self.finger_table_sockets[m]
+                return self.finger_table_sockets[m], self.finger_table_names[m], self.finger_table_tcp[m]
 
         self.logger.debug (f"DHTNodeMW::chord_closest_preceding_node:: {self.hashVal}:: cpn is not in this finger table, send to its successor")
-        return self.finger_table_sockets[0]
+        return self.finger_table_sockets[0], self.finger_table_names[0], self.finger_table_tcp[0]
   
       except Exception as e:
         raise e
@@ -769,9 +780,12 @@ class DHTNodeMW ():
           buf2send = identities + [b"", b"chord" + b"||" + byteMsg] # tag, byteMsg
 
           # send the request to the next successor
-          sock = self.chord_find_successor (hashVal)
+          sock, id, tcp = self.chord_find_successor (hashVal)
           
-          sock.send_multipart (buf2send)
+          sock.send_multipart (buf2send, flags=zmq.NOBLOCK)
+          self.logger.debug ("DHTNodeMW::invoke_chord_register::sent request to: {}".format(id))
+          self.logger.debug ("DHTNodeMW::invoke_chord_register::the tcp address is: {}".format(sock.getsockopt(zmq.LAST_ENDPOINT)))
+          self.logger.debug ("DHTNodeMW::invoke_chord_register::the tcp should be: {}".format(tcp))
           self.logger.debug ("DHTNodeMW::invoke_chord_register::waiting for response...")
 
           return False, 'None' # Meaning it's not the Last node in the chain
@@ -816,9 +830,12 @@ class DHTNodeMW ():
 
           buf2send = identities + [b"", b"chord" + b"||" + byteMsg] # tag, byteMsg
           # send the request to the next successor
-          sock = self.chord_find_successor (hashVal)
+          sock, id, tcp = self.chord_find_successor (hashVal)
           
-          sock.send_multipart (buf2send)
+          sock.send_multipart (buf2send, flags=zmq.NOBLOCK)
+          self.logger.debug ("DHTNodeMW::invoke_chord_register::sent request to: {}".format(id))
+          self.logger.debug ("DHTNodeMW::invoke_chord_register::the tcp address is: {}".format(sock.getsockopt(zmq.LAST_ENDPOINT)))
+          self.logger.debug ("DHTNodeMW::invoke_chord_register::the tcp should be: {}".format(tcp))
           self.logger.debug ("DHTNodeMW::invoke_chord_register::waiting for response...")
           
           return False, 'None' # Meaning it's not the Last node in the chain 
