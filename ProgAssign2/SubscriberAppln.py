@@ -125,13 +125,11 @@ class SubscriberAppln ():
 
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
-      '''
       self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
           # pass each topic to mw
           self.mw_obj.subscribe()
-      '''
       #self.mw_obj.event_loop()  
 
     except Exception as e:

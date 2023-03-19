@@ -311,12 +311,12 @@ class DHTNodeMW ():
 
       pubList = []
       for topic in topiclist:
-        pubs = self.invoke_chord_lookup (identities, topic, role)
+        isLastNode, pubs = self.invoke_chord_lookup (identities, topic, role)
         print(pubs)
         pubs = pubs.split(b",")
         pubList.extend(pubs)
 
-      return pubList
+      return isLastNode, pubList
 
     except Exception as e:
       raise e
@@ -533,7 +533,8 @@ class DHTNodeMW ():
 
           identities = reply[:-2]
           tag, bytesMsg = reply[-1].split(b'||')
-
+          #resp = packet[-1].split(b'||')[-1] # lagecy code
+          
           self.rep.send_multipart (identities + [b"", tag + b"||" + bytesMsg])  # we use the "send" method of ZMQ that sends the bytes
 
         sleep_time = random.choice([0.1, 0.2, 0.3, 0.4, 0.5])
@@ -581,9 +582,9 @@ class DHTNodeMW ():
         resp = self.gen_ready_resp(status)
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
-        pubList = self.lookup (identities, request) 
+        isLastNode, pubList = self.lookup (identities, request) 
         resp = self.gen_lookup_resp(pubList)
-        return resp # relations with proto definitions
+        return isLastNode, request.msg_type, resp # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")
@@ -620,8 +621,8 @@ class DHTNodeMW ():
         return status
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
-        pubs = self.chord_lookup(identities, request)
-        return pubs # relations with proto definitions
+        isLastNode, pubs = self.chord_lookup(identities, request)
+        return isLastNode, request.msg_type, pubs # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")
@@ -668,8 +669,8 @@ class DHTNodeMW ():
       topic = request.lookup_req.topiclist[0]
       self.logger.debug (f"DHTNodeMW::chord_lookup::topic is {topic}")
       role = request.lookup_req.role
-      resp = self.invoke_chord_lookup(identities, topic, role)
-      return resp
+      isLastNode, resp = self.invoke_chord_lookup(identities, topic, role)
+      return isLastNode, resp
     
     except Exception as e:
       raise e
@@ -744,7 +745,7 @@ class DHTNodeMW ():
 
           # END POINT: this is the node that should store the info
           for interval in self.hash_range:
-            if hashVal in interval or self.name.encode('utf-8') in identities:
+            if hashVal in interval: #or self.name.encode('utf-8') in identities:
               # store the info in the registry
               self.registry[uid] = {"role":role, 
                                           "addr": addr, 
@@ -799,7 +800,7 @@ class DHTNodeMW ():
           hashVal = self.hash_func(uid)
           self.logger.debug (f"DHTNodeMW::Subscribers::HashVal: {hashVal}")
           for interval in self.hash_range:
-            if hashVal in interval or self.name.encode('utf-8') in identities:
+            if hashVal in interval: # or self.name.encode('utf-8') in identities:
                 # store the info in the registry
                 self.registry[uid] = {"role":role}
                 self.logger.debug ("DHTNodeMW::Registry {}".format(self.registry))
@@ -858,7 +859,7 @@ class DHTNodeMW ():
           # END: this is the node that should store the info
           for interval in self.hash_range:
             self.logger.debug ("DHTNodeMW::involke_chord_lookup::interval {}".format(interval))
-            if hashVal in interval or self.name in identities.decode("utf-8"):
+            if hashVal in interval: # or any([self.name.encode('utf8') in id for id in identities]):
               self.logger.debug ("DHTNodeMW::involke_chord_lookup::self.registry {}".format(self.registry))
               # store the info in the registry
               ret = []
@@ -869,12 +870,12 @@ class DHTNodeMW ():
                   self.logger.debug ("DHTNodeMW::involke_chord_lookup::string {}".format(string))
                   ret.append(string)
               ret = ",".join(ret)  
-              return ret.encode('utf-8')
+              return True, ret.encode('utf-8')
                     
         elif role == discovery_pb2.ROLE_BOTH:          
           # END: this is the node that should store the info
           for interval in self.hash_range:
-            if hashVal in interval or self.name in identities.decode("utf-8"):
+            if hashVal in interval: # or any([self.name.encode("utf-8") in id for id in identities]):
               # store the info in the registry
               ret = []
               for name, detail in self.registry.items():
@@ -882,7 +883,7 @@ class DHTNodeMW ():
                   string = name + ":" + detail["addr"] + ":" + str(detail["port"])
                   ret.append(string)
               ret = ",".join(ret)
-              return ret.encode('utf-8')
+              return True, ret.encode('utf-8')
               
         # Serialize the request
         # Serialize the request
@@ -902,25 +903,18 @@ class DHTNodeMW ():
         byteMsg = disc_req.SerializeToString ()
         self.logger.debug ("Stringified serialized buf = {}".format (byteMsg))
 
-        buf2send = [identities, b'chord' + b"||" + byteMsg] # tag, byteMsg
 
+        buf2send = identities + [b"", b"chord" + b"||" + byteMsg] # tag, byteMsg
         # send the request to the next successor
-
-
-        tcp = self.chord_find_successor (hashVal)
-        self.async_req.connect (tcp)
-        self.logger.debug (f"DHTNodeMW::invoke_chord_register::send to the next node: {tcp}")
-        self.async_req.send_multipart (buf2send)
-        self.logger.debug ("DHTNodeMW::invoke_chord_register::waiting for response...")
+        sock, id, tcp = self.chord_find_successor (hashVal)
         
-        packet = self.async_req.recv_multipart ()
-        resp = packet[-1].split(b'||')[-1]
-        self.async_req.disconnect (tcp)
-        # propagate the response back to the handler
-        print("resp: ", resp)
-        self.logger.debug (f"DHTNodeMW::invoke_chord_lookup::resp: {resp}")
-        return resp 
-
+        sock.send_multipart (buf2send, flags=zmq.NOBLOCK)
+        self.logger.debug ("DHTNodeMW::invoke_chord_lookup::sent request to: {}".format(id))
+        self.logger.debug ("DHTNodeMW::invoke_chord_lookup::the tcp address is: {}".format(sock.getsockopt(zmq.LAST_ENDPOINT)))
+        self.logger.debug ("DHTNodeMW::invoke_chord_lookup::the tcp should be: {}".format(tcp))
+        self.logger.debug ("DHTNodeMW::invoke_chord_lookup::waiting for response...")
+          
+        return False, 'None' # Meaning it's not the Last node in the chain 
       except Exception as e:
         raise e
 
