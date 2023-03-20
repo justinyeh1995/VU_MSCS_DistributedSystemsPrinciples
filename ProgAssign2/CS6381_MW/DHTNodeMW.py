@@ -311,11 +311,13 @@ class DHTNodeMW ():
 
       pubList = []
       for topic in topiclist:
-        isLastNode, pubs = self.invoke_chord_lookup (identities, topic, role)
-        print(pubs)
+        isLastNode, pubs = self.invoke_chord_lookup (identities, topic, role)  
+        self.logger.debug ("DHTNodeMW::lookup - pubs: {}".format(pubs))
+        if pubs == b"None":
+          continue
         pubs = pubs.split(b",")
         pubList.extend(pubs)
-
+      self.logger.debug ("DHTNodeMW::lookup - pubList: {}".format(pubList))
       return isLastNode, pubList
 
     except Exception as e:
@@ -424,7 +426,7 @@ class DHTNodeMW ():
 
   def gen_lookup_resp(self, pubList):
     try:
-      self.logger.debug ("DHTNodeMW::lookup - generate the response")
+      self.logger.debug ("DHTNodeMW::gen_lookup_resp - generate the response")
 
       # we do a similar kind of serialization as we did in the register
       # message but much simpler, and then send the request to
@@ -433,11 +435,11 @@ class DHTNodeMW ():
       # The following code shows serialization using the protobuf generated code.
       
       # first build a IsReady message
-      self.logger.debug ("DHTNodeMW::lookup - populate the nested Lookup msg")
+      self.logger.debug ("DHTNodeMW::gen_lookup_resp - populate the nested LookupPubByTopicResp msg")
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
-
-      for pub in pubList:
-        self.logger.debug (f"DHTNodeMW::lookup - pub - {pub}")
+      self.logger.debug (f"DHTNodeMW::gen_lookup_resp - pubList - {pubList}")
+      for pub in list(set(pubList)):
+        self.logger.debug (f"DHTNodeMW::gen_lookup_resp - pub - {pub}")
         name, addr, port = pub.decode('utf-8').split(':')
         info = discovery_pb2.RegistrantInfo ()
         info.id = name
@@ -446,18 +448,18 @@ class DHTNodeMW ():
         topic_msg.publishers.append(info)
 
       # Build the outer layer Discovery Message
-      self.logger.debug ("DHTNodeMW::lookup - build the outer DiscoveryReq message")
+      self.logger.debug ("DHTNodeMW::gen_lookup_resp - build the outer DiscoveryReq message")
       disc_resp = discovery_pb2.DiscoveryResp ()
       disc_resp.msg_type = discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC
       # It was observed that we cannot directly assign the nested field here.
       # A way around is to use the CopyFrom method as shown
       disc_resp.lookup_resp.CopyFrom (topic_msg)
-      self.logger.debug ("DHTNodeMW::lookup - done building the outer message")
+      self.logger.debug ("DHTNodeMW::gen_lookup_resp - done building the outer message")
       
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
       # a real string
       buf2send = disc_resp.SerializeToString ()
-      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
+      self.logger.debug ("DHTNodeMW::gen_lookup_resp - Stringified serialized buf = {}".format (buf2send))
 
       # now send this to our discovery service
       #self.logger.debug ("DHTNodeMW::is_ready - send stringified buffer to Discovery service")
@@ -499,6 +501,9 @@ class DHTNodeMW ():
           self.logger.debug ("DHTNodeMW::event_loop - Start processing the request")
 
           isLastNode, type, result = self.demultiplex_request (identities, tag, bytesMsg)
+          self.logger.debug ("DHTNodeMW::event_loop - isLastNode = {}".format (isLastNode))
+          self.logger.debug ("DHTNodeMW::event_loop - type = {}".format (type))
+          self.logger.debug ("DHTNodeMW::event_loop - result = {}".format (result))
 
           self.logger.debug ("DHTNodeMW::event_loop - Done processing the request")
           
@@ -554,7 +559,7 @@ class DHTNodeMW ():
       isLastNode, type, result = self.handle_request (identities, bytesMsg)
     else:
       isLastNode, type, result = self.handle_chord_request (identities, tag, bytesMsg)
-
+    self.logger.debug ("DHTNodeMW::demultiplex_request - Done demultiplexing the request")
     return isLastNode, type, result
 
 
@@ -578,13 +583,11 @@ class DHTNodeMW ():
         isLastNode, status = self.register (identities, request)
         return isLastNode, request.msg_type, status
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
-        status = self.isReady (identities, bytesMsg)
-        resp = self.gen_ready_resp(status)
-        return resp
+        isLastNode, status = self.isReady (identities, bytesMsg)
+        return isLastNode, request.msg_type, status
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         isLastNode, pubList = self.lookup (identities, request) 
-        resp = self.gen_lookup_resp(pubList)
-        return isLastNode, request.msg_type, resp # relations with proto definitions
+        return isLastNode, request.msg_type, pubList # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")
@@ -600,7 +603,7 @@ class DHTNodeMW ():
   def handle_chord_request (self, identities, tag, bytesMsg):
 
     try:
-      self.logger.debug ("DHTNodeMW::handle_dht_request")
+      self.logger.debug ("DHTNodeMW::handle_chord_request")
 
       # now use protobuf to deserialize the bytes
       request = discovery_pb2.DiscoveryReq ()
@@ -617,11 +620,12 @@ class DHTNodeMW ():
         return isLastNode, request.msg_type, status
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request
-        status = self.chord_isReady(identities, tag, bytesMsg)
-        return status
+        isLastNode, status = self.chord_isReady(identities, tag, bytesMsg)
+        return isLastNode, request.msg_type, status
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
         isLastNode, pubs = self.chord_lookup(identities, request)
+        self.logger.debug ("DHTNodeMW::handle_chord_request - Done processing the request")
         return isLastNode, request.msg_type, pubs # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
@@ -669,8 +673,8 @@ class DHTNodeMW ():
       topic = request.lookup_req.topiclist[0]
       self.logger.debug (f"DHTNodeMW::chord_lookup::topic is {topic}")
       role = request.lookup_req.role
-      isLastNode, resp = self.invoke_chord_lookup(identities, topic, role)
-      return isLastNode, resp
+      isLastNode, pubs = self.invoke_chord_lookup(identities, topic, role)
+      return isLastNode, pubs.split(b",")
     
     except Exception as e:
       raise e
@@ -914,7 +918,7 @@ class DHTNodeMW ():
         self.logger.debug ("DHTNodeMW::invoke_chord_lookup::the tcp should be: {}".format(tcp))
         self.logger.debug ("DHTNodeMW::invoke_chord_lookup::waiting for response...")
           
-        return False, 'None' # Meaning it's not the Last node in the chain 
+        return False, b'None' # Meaning it's not the Last node in the chain 
       except Exception as e:
         raise e
 
