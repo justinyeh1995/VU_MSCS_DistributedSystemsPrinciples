@@ -27,6 +27,7 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
+import traceback # for printing stack traces
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -78,7 +79,7 @@ class BrokerMW ():
       
       # Now acquire the REQ and PUB sockets
       self.logger.debug ("BrokerMW::configure - obtain REQ and PUB sockets")
-      self.req = context.socket (zmq.REQ)
+      self.req = context.socket (zmq.DEALER)
       self.sub = context.socket (zmq.SUB)
       self.pub = context.socket (zmq.PUB)
 
@@ -91,7 +92,7 @@ class BrokerMW ():
       self.logger.debug ("BrokerMW::configure - connect to Discovery service")
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
-      self.configure_REQ ()
+      self.configure_REQ (args)
       
       # Since we are the publisher, the best practice as suggested in ZMQ is for us to
       # "bind" to the PUB socket
@@ -108,8 +109,10 @@ class BrokerMW ():
   # REQ socket configure Connect to successor 
   ########################################
 
-  def configure_REQ (self):
+  def configure_REQ (self,args):
       self.logger.debug ("DiscoveryMW::configure_REQ")
+      identity = args.name
+      self.req.setsockopt(zmq.IDENTITY, identity.encode('utf-8'))
       with open(self.dht_file, 'r') as f:
           dht_data = json.load (f)
       
@@ -173,7 +176,7 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("BrokerMW::register - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'', b'client'+ b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
 
       # now go to our event loop to receive a response to this request
       self.logger.debug ("BrokerMW::register - now wait for reply")
@@ -181,6 +184,7 @@ class BrokerMW ():
       
     
     except Exception as e:
+      traceback.print_exc()
       raise e
 
   ########################################
@@ -220,13 +224,14 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("BrokerMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client',buf2send]) # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'', b'client'+ b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
       
       # now go to our event loop to receive a response to this request
       self.logger.debug ("BrokerMW::is_ready - now wait for reply")
       return self.event_loop ()
       
     except Exception as e:
+      traceback.print_exc()
       raise e
 
   ######################
@@ -252,9 +257,14 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
-      self.req.send_multipart ([b'client',buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      self.req.send_multipart ([b'', b'client'+ b"||" + buf2send])  # we use the "send" method of ZMQ that sends the bytes
+      
+      while True:
+        infoList = self.event_loop()
+        self.logger.debug ("BrokerMW::infoList = {}".format (infoList))
+        if type(infoList) == discovery_pb2.LookupPubByTopicResp:
+          break
 
-      infoList = self.event_loop()
       pubList = infoList.publishers
 
       if not pubList:
@@ -274,6 +284,7 @@ class BrokerMW ():
       return True
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
   #################################################################
@@ -306,7 +317,8 @@ class BrokerMW ():
       self.logger.debug ("BrokerMW::handle_reply")
 
       # let us first receive all the bytes
-      bytesRcvd = self.req.recv ()
+      packet = self.req.recv_multipart () 
+      bytesRcvd = packet[-1].split(b"||") [-1]
 
       # now use protobuf to deserialize the bytes
       disc_resp = discovery_pb2.DiscoveryResp ()
@@ -315,6 +327,7 @@ class BrokerMW ():
       # depending on the message type, the remaining
       # contents of the msg will differ
 
+      self.logger.debug ("BrokerMW::handle_reply - disc_resp = {}".format (disc_resp))
       # TO-DO
       # When your proto file is modified, some of this here
       # will get modified.
@@ -332,6 +345,7 @@ class BrokerMW ():
         raise Exception ("Unrecognized response message")
 
     except Exception as e:
+      traceback.print_exc()
       raise e
             
             
@@ -346,6 +360,7 @@ class BrokerMW ():
       self.pub.send_string (message)
 
     except Exception as e:
+      traceback.print_exc()
       raise e
             
 
