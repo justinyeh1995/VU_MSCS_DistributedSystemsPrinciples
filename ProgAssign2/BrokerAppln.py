@@ -127,8 +127,11 @@ class PublisherAppln ():
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("BrokerAppln::driver - register with the discovery service")
+      start = time.monotonic ()
       result = self.mw_obj.register (self.name, self.topiclist)
+      end = time.monotonic ()
       self.logger.debug ("BrokerAppln::driver - result of registration".format (result))
+      self.logger.debug ("BrokerAppln::driver - time taken for registration: {}".format (end-start))
       time.sleep (5)  # sleep between calls so that we don't make excessive calls
 
       # Now keep checking with the discovery service if we are ready to go
@@ -141,8 +144,10 @@ class PublisherAppln ():
 
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
-
+      start = time.monotonic ()
       self.mw_obj.lookup_topic (self.topiclist)
+      end = time.monotonic ()
+      self.logger.debug ("BrokerAppln::driver - time taken for lookup: {}".format (end-start))
 
       while True:
           self.mw_obj.disseminateViaBroker()

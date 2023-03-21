@@ -48,13 +48,16 @@ class ExperimentGenerator ():
     self.num_disc_dht = None  # num of discovery DHT instances
     self.num_pub = None  # num of publishers
     self.num_sub = None  # num of subscribers
+    self.num_broker = None # num of brokers
     self.disc_base_port = None  # starting port num if multiple of the same service is deployed on the node
     self.pub_base_port = None  # same for this
+    self.broker_base_port = None # same for this
     self.num_mn_nodes = None # num of nodes in mininet topo; will be derived
     self.bits_hash = None # number of bits in hash value (default 48)
     self.disc_dict = {} # dictionary of generated discovery DHT instances
     self.pub_dict = {} # dictionary of generated publisher instances
     self.sub_dict = {} # dictionary of generated subscriber instances
+    self.broker_dict = {} # dictionary of generated broker instances
     self.script_file = None  # for the experiment script
     self.json_file = None # for the database of DHT 
     self.logger = logger # The logger
@@ -70,8 +73,10 @@ class ExperimentGenerator ():
     self.num_disc_dht = args.num_disc_dht
     self.num_pub = args.num_pub
     self.num_sub = args.num_sub
+    self.num_broker = 1
     self.disc_base_port = args.disc_base_port
     self.pub_base_port = args.pub_base_port
+    self.broker_base_port = args.broker_base_port
     self.script_file = args.script_file
     self.json_file = args.json_file
     
@@ -98,6 +103,7 @@ class ExperimentGenerator ():
       self.disc_dict["h"+str(i+1)] = []
       self.pub_dict["h"+str(i+1)] = []
       self.sub_dict["h"+str(i+1)] = []
+      self.broker_dict["h"+str(i+1)] = []
       
   #################
   # debugging output
@@ -159,6 +165,8 @@ class ExperimentGenerator ():
       port = self.disc_base_port + len (self.disc_dict[host])
     elif prefix == "pub":
       port = self.pub_base_port - len (self.pub_dict[host])
+    elif prefix == "broker":
+      port = self.broker_base_port - len (self.broker_dict[host])
     else:
       port = None
 
@@ -211,6 +219,8 @@ class ExperimentGenerator ():
       target_dict = self.pub_dict
     elif prefix == "sub":
       target_dict = self.sub_dict
+    elif prefix == "broker":
+      target_dict = self.broker_dict
     else:
       raise ValueError ("populate_dict::unknown prefix: {}".format (prefix))
       
@@ -306,13 +316,31 @@ class ExperimentGenerator ():
         for nested_dict in host_list:
           # generate intested in topics in the range of 5 to 9 because
           # our topic helper currently has 9 topics in it.
-          num_topics = random.randint (5, 9)
+          num_topics = 9
+          iterations = random.choice ([1000, 2000, 3000])
 
           # build the command line
           cmdline = host + " python3 SubscriberAppln.py " + \
             "-n " + nested_dict["id"]  + " " + \
             "-j " + self.json_file + " " + \
             "-T " + str(num_topics) + " " + \
+            "> " + nested_dict["id"] + ".out 2>&1 &\n"
+          f.write (cmdline)
+
+      # Do similar things with brokers. Here I am suggesting that we pass
+      # the same JSON file to broker and then it decides which discovery service
+      # to use from among all the nodes (pick at random) or for experiments
+      # choose one by one.  So we remove the "-d <discovery details>" and instead
+      # add "-j <json>"
+      for i in range (self.num_mn_nodes):
+        host = "h" + str (i+1)
+        host_list = self.broker_dict[host]
+        for nested_dict in host_list:
+          cmdline = host + " python3 BrokerAppln.py " + \
+            "-n " + nested_dict["id"]  + " " + \
+            "-j " + self.json_file + " " + \
+            "-a " + str(nested_dict["IP"]) + " " + \
+            "-p " + str(nested_dict["port"]) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
           f.write (cmdline)
 
@@ -367,6 +395,9 @@ class ExperimentGenerator ():
     # Now generate the entries for our subscribers
     self.populate_dict ("sub", self.num_sub)
 
+    # Now generate the entries for our brokers
+    self.populate_dict ("broker", self.num_broker)
+
     self.dump ()
 
     # Now JSONify the DHT DB
@@ -397,6 +428,8 @@ def parseCmdLineArgs ():
   parser.add_argument ("-d", "--disc_base_port", type=int, default=5555, help="base port for discovery, default 5555")
 
   parser.add_argument ("-p", "--pub_base_port", type=int, default=7777, help="base port for publishers, default 7777")
+
+  parser.add_argument ("-a", "--broker_base_port", type=int, default=7778, help="base port for brokers, default 7778")
 
   parser.add_argument ("-t", "--mn_topo", default="single,20", help="Mininet topology, default single,20 - other possibilities include linear,N or tree,fanout=N,depth=M")
 

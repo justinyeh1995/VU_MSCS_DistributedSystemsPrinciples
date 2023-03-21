@@ -111,8 +111,11 @@ class SubscriberAppln ():
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("SubscriberAppln::driver - register with the discovery service")
+      start = time.monotonic ()
       result = self.mw_obj.register (self.name, self.topiclist)
-      self.logger.debug ("SubscriberAppln::driver - result of registration".format (result))
+      end = time.monotonic ()
+      self.logger.debug ("SubscriberAppln::driver - result of registration {}".format (result))
+      self.logger.debug ("SubscriberAppln::driver - time taken for registration: {}".format (end-start))
       time.sleep (5)  # sleep for 5 seconds so that the discovery service can get the registration
 
       # Now keep checking with the discovery service if we are ready to go
@@ -125,7 +128,10 @@ class SubscriberAppln ():
 
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
+      start = time.monotonic ()
       self.mw_obj.lookup_topic (self.topiclist)
+      end = time.monotonic ()
+      self.logger.debug ("SubscriberAppln::driver - time taken for lookup: {}".format (end-start))
 
       while True:
         # pass each topic to mw
