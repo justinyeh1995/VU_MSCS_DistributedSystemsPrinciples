@@ -261,7 +261,6 @@ class BrokerMW ():
       
       while True:
         infoList = self.event_loop()
-        self.logger.debug ("BrokerMW::infoList = {}".format (infoList))
         if type(infoList) == discovery_pb2.LookupPubByTopicResp:
           break
 
@@ -327,7 +326,6 @@ class BrokerMW ():
       # depending on the message type, the remaining
       # contents of the msg will differ
 
-      self.logger.debug ("BrokerMW::handle_reply - disc_resp = {}".format (disc_resp))
       # TO-DO
       # When your proto file is modified, some of this here
       # will get modified.
