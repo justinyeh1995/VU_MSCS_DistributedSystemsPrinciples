@@ -117,9 +117,9 @@ class SubscriberAppln ():
 
       # Now keep checking with the discovery service if we are ready to go
       self.logger.debug ("SubscriberAppln::driver - check if are ready to go")
-      # while (not self.mw_obj.is_ready ()):
-      #   time.sleep (5)  # sleep between calls so that we don't make excessive calls
-      #   self.logger.debug ("SubscriberAppln::driver - check again if are ready to go")
+      while (not self.mw_obj.is_ready ()):
+        time.sleep (5)  # sleep between calls so that we don't make excessive calls
+        self.logger.debug ("SubscriberAppln::driver - check again if are ready to go")
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
@@ -128,8 +128,8 @@ class SubscriberAppln ():
       self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
-          # pass each topic to mw
-          self.mw_obj.subscribe()
+        # pass each topic to mw
+        self.mw_obj.subscribe()
       #self.mw_obj.event_loop()  
 
     except Exception as e:

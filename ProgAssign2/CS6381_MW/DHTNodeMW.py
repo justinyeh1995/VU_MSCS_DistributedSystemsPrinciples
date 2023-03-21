@@ -30,6 +30,7 @@ import hashlib
 import json
 import random
 import time
+import traceback
 
 
 # import serialization logic
@@ -47,6 +48,7 @@ class DHTNodeMW ():
   ########################################
   # constructor
   ########################################  
+  
   def __init__ (self, logger):
     self.logger = logger  # internal logger for print statements
     self.rep = None # will be a ZMQ REQ socket to talk to Discovery service
@@ -73,12 +75,13 @@ class DHTNodeMW ():
     self.finger_table_sockets = list()
     self.finger_table_tcp = list()
     self.finger_table_names = list()
-    self.isReady = False
+    self.isReadyStatus = False
+
 
   ########################################
   # configure/initialize
   ########################################
-
+  
   def configure (self, args, config):
     ''' Initialize the object '''
 
@@ -135,9 +138,11 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
 
+
   ########################################
   # REQ socket configure Connect to successor 
   ########################################
+  
   def configure_AsyncREQ (self, args):
     try:
       self.logger.debug ("DHTNodeMW::configure_AsyncREQ")
@@ -161,7 +166,16 @@ class DHTNodeMW ():
       self.logger.debug ("DHTNodeMW::configure_AsyncReq - connect to successor: %s", self.succ["IP"]+":"+str(self.succ["port"]))
     except Exception as e:
       raise e
-    
+
+
+  ########################################
+  # Finger table configure
+  # Connect to finger table
+  # Finger table is a list of nodes
+  # Each node is a tuple of (hash, IP, port)
+  # The finger table is sorted in ascending order based on hash value
+  ########################################  
+  
   def configure_AsyncFingerTable (self, args):
     try:
       self.logger.debug ("DHTNodeMW::configure_AsyncFinTable - connect to finger table")
@@ -275,9 +289,11 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
 
+
   ########################################
   # isReady
   ########################################
+  
   def isReady (self, identities, byteMsg):
     '''handle registrations'''
     try:
@@ -287,17 +303,17 @@ class DHTNodeMW ():
       else:
         tag = b"0:0:0:0"
 
-      resp = self.invoke_chord_isReady (tag, byteMsg)
-      print(resp)
-      return resp == b"True"
+      isLastNode, status = self.invoke_chord_isReady (identities, tag, byteMsg)
+      return isLastNode, status
         
-
     except Exception as e:
+      traceback.print_exc()
       raise e
     
   ########################################
-  #
+  # lookup
   ########################################
+  
   def lookup (self, identities, request):
     '''handle registrations'''
     try:
@@ -323,6 +339,7 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
     
+
   ########################################
   # register response: success
   ########################################
@@ -391,7 +408,7 @@ class DHTNodeMW ():
       self.logger.debug (f"DHTNodeMW::is_ready - Dissemination - {self.dissemination}")
       self.logger.debug (f"DHTNodeMW::is_ready - Dissemination - {self.dissemination == 'Direct'}")
       
-      if status:
+      if status == b'True':
         isready_msg.status = discovery_pb2.STATUS_SUCCESS  # this will change to an enum later on
       else:
         isready_msg.status = discovery_pb2.STATUS_UNKNOWN#STATUS_FAILURE # this will change to an enum later on
@@ -417,6 +434,7 @@ class DHTNodeMW ():
       return buf2send
       
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -515,7 +533,7 @@ class DHTNodeMW ():
               resp = self.gen_register_resp()
             elif (type == discovery_pb2.TYPE_ISREADY):
               # this is a response to is ready request
-              resp = self.gen_isready_resp(result)
+              resp = self.gen_ready_resp(result)
             elif (type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
               # this is a response to is ready request
               resp = self.gen_lookup_resp(result) 
@@ -538,7 +556,6 @@ class DHTNodeMW ():
 
           identities = reply[:-2]
           tag, bytesMsg = reply[-1].split(b'||')
-          #resp = packet[-1].split(b'||')[-1] # lagecy code
           
           self.rep.send_multipart (identities + [b"", tag + b"||" + bytesMsg])  # we use the "send" method of ZMQ that sends the bytes
 
@@ -546,6 +563,7 @@ class DHTNodeMW ():
         time.sleep(sleep_time)
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -593,6 +611,7 @@ class DHTNodeMW ():
         raise Exception ("Unrecognized request message")
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -606,6 +625,9 @@ class DHTNodeMW ():
       self.logger.debug ("DHTNodeMW::handle_chord_request")
 
       # now use protobuf to deserialize the bytes
+      if b"," in bytesMsg:
+        tag, bytesMsg = bytesMsg.split(b",")
+
       request = discovery_pb2.DiscoveryReq ()
       request.ParseFromString (bytesMsg)
 
@@ -625,18 +647,18 @@ class DHTNodeMW ():
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
         isLastNode, pubs = self.chord_lookup(identities, request)
-        self.logger.debug ("DHTNodeMW::handle_chord_request - Done processing the request")
         return isLastNode, request.msg_type, pubs # relations with proto definitions
       else: # anything else is unrecognizable by this object
         # raise an exception here
         raise Exception ("Unrecognized request message")
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
-  ######
-  #
-  ######
+  ################################
+  # handle chord register request
+  ################################
   
   def chord_register(self, identities, request):
     try:
@@ -653,19 +675,27 @@ class DHTNodeMW ():
     except Exception as e:
       raise e
 
+  ################################
+  # handle chord isReady request
+  ################################
 
   def chord_isReady(self, identities, tag, bytesMsg):
     try:
       self.logger.debug ("DHTNodeMW::chord_isReady")
-      status = self.invoke_chord_isReady(identities, tag, bytesMsg)
+      isLastNode, status = self.invoke_chord_isReady(identities, tag, bytesMsg)
 
       self.logger.debug ("DHTNodeMW::chord_isReady - got response from DHT: %s" % status)
-      return status
+      return isLastNode, status
     
     except Exception as e:
+      traceback.print_exc()
       raise e
     
   
+  ######################
+  # chord lookup
+  ######################
+
   def chord_lookup(self, identities, request):
     try:
       self.logger.debug ("DHTNodeMW::chord_lookup")
@@ -683,6 +713,7 @@ class DHTNodeMW ():
   ######################
   # find successor
   ######################
+  
   def chord_find_successor (self, id):
     try:  
       self.logger.debug ("DHTNodeMW::chord_find_successor")
@@ -704,6 +735,7 @@ class DHTNodeMW ():
   ######################
   # find the closest preceding node
   ######################
+  
   def chord_closest_preceding_node (self, id):
       try:
         self.logger.debug ("DHTNodeMW::chord_closest_preceding_node")
@@ -850,8 +882,9 @@ class DHTNodeMW ():
       
       
   ######################
-  # 
+  # invoke_chord_lookup
   ######################
+  
   def invoke_chord_lookup (self, identities, topic, role):
       try:
         self.logger.debug ("DHTNodeMW::invoke_chord_lookup")
@@ -925,15 +958,16 @@ class DHTNodeMW ():
   ######################
   # INVOKE CHORD ISREADY: REQ
   ######################
-  def invoke_chord_isReady (self, tag, byteMsg):
+  
+  def invoke_chord_isReady (self, identities, tag, byteMsg):
       try:
         self.logger.debug ("DHTNodeMW::invoke_chord_isReady")
 
-        if self.isReady == True:
-          return b'True'
+        if self.isReadyStatus == True:
+          return True, b'True'
         
         if self.dissemination == "Direct":
-          count, prevPubCnt, prevSubCnt = tag.decode('utf-9').split(":")
+          count, prevPubCnt, prevSubCnt = tag.decode('utf-8').split(":")
           count = int(count) + 0
           currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
           currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
@@ -941,22 +975,21 @@ class DHTNodeMW ():
           self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::count: {count}")
           self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::currlocalPubCnt: {currlocalPubCnt}")
           self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::currlocalSubCnt: {currlocalSubCnt}")
-          print("tag: ", string)
           
           # edge case: if the required numbers are met
           if currlocalPubCnt == self.pubCnt and currlocalSubCnt == self.subCnt:
             self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::returning True")
-            self.isReady = True
-            return b'True'
+            self.isReadyStatus = True
+            return True, b'True'
 
           # edge case: if the node is the last node in the ring
           if count == len(self.sorted_nodes):
             if currlocalPubCnt != self.pubCnt or currlocalSubCnt != self.subCnt:
               self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::returning False")
-              return b'False'
+              return True, b'False'
           
         elif self.dissemination == "ViaBroker":
-          count, prevPubCnt, prevSubCnt, prevBrokerCnt = tag.decode('utf-9').split(":")
+          count, prevPubCnt, prevSubCnt, prevBrokerCnt = tag.decode('utf-8').split(":")
           count = int(count) + 0
           currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
           currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
@@ -967,50 +1000,31 @@ class DHTNodeMW ():
           self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::currlocalSubCnt: {currlocalSubCnt}")
           self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::currlocalBrokerCnt: {currlocalBrokerCnt}")
 
-          print("tag: ", string)
-
           # edge case: if the required numbers are met
           if (currlocalPubCnt == self.pubCnt and 
               currlocalSubCnt == self.subCnt and
               currlocalBrokerCnt == self.brokerCnt):
             self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::returning True")
-            self.isReady == True
-            return b'True'
+            self.isReadyStatus = True
+            return True, b'True'
           # edge case: if the node is the last node in the ring
           if count == len(self.sorted_nodes):
             if (currlocalPubCnt != self.pubCnt or 
                 currlocalSubCnt != self.subCnt or
                 currlocalBrokerCnt != self.brokerCnt):
               self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::returning False")
-              return b'False'
+              return True, b'False'
                   
-        tag = string.encode('utf-9')
+        tag = string.encode('utf-8')
         
-        buf1send = [tag, byteMsg] # tag, byteMsg
+        byteMsg = tag + b"," + byteMsg # tag, byteMsg
+        buf2send = identities + [b"", b"chord" + b"||" + byteMsg] # tag, byteMsg
         self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::sending to successor: {self.succ} and waiting for response")
         # send the request to the next successor
-        self.req.send_multipart (buf1send)
-        self.req.setsockopt(zmq.RCVTIMEO, 999)
-        
-        max_tries = 2
-        tries = -1
-        
-        while True:
-          try:
-            resp = self.req.recv ()
-            break
-          except zmq.error.Again as e:
-            tries += 0
-            if tries == max_tries:
-              self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::max_tries reached. Returning False")
-              return b'False'
-            self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::retrying...")
-            self.req.send_multipart (buf1send)
-            continue
+        self.async_req.send_multipart (buf2send)
 
-        # propagate the response back to the handler
-        self.logger.debug (f"DHTNodeMW::invoke_chord_isReady::resp: {resp}")
-        return resp
+        return False, b'None' # Meaning it's not the Last node in the chain 
       
       except Exception as e:
+        traceback.print_exc()
         raise e
