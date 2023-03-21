@@ -275,7 +275,7 @@ class DHTNodeMW ():
         
         self.localBrokerCnt += 1
         
-        self.logger.debug ("DHTNodeMW::Publishers::Parsing Discovery Request")
+        self.logger.debug ("DHTNodeMW::Storing Broker's information")
 
         topiclist = req_info.topiclist
         for topic in topiclist:
@@ -456,8 +456,11 @@ class DHTNodeMW ():
       self.logger.debug ("DHTNodeMW::gen_lookup_resp - populate the nested LookupPubByTopicResp msg")
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
       self.logger.debug (f"DHTNodeMW::gen_lookup_resp - pubList - {pubList}")
+  
       for pub in list(set(pubList)):
         self.logger.debug (f"DHTNodeMW::gen_lookup_resp - pub - {pub}")
+        if pub == b'':
+          continue
         name, addr, port = pub.decode('utf-8').split(':')
         info = discovery_pb2.RegistrantInfo ()
         info.id = name
