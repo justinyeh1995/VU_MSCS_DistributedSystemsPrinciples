@@ -971,7 +971,7 @@ class DHTNodeMW ():
         
         if self.dissemination == "Direct":
           count, prevPubCnt, prevSubCnt = tag.decode('utf-8').split(":")
-          count = int(count) + 0
+          count = int(count) + 1
           currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
           currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
           string = str(count) + ":" + str(currlocalPubCnt) + ":" + str(currlocalSubCnt)
@@ -993,7 +993,7 @@ class DHTNodeMW ():
           
         elif self.dissemination == "ViaBroker":
           count, prevPubCnt, prevSubCnt, prevBrokerCnt = tag.decode('utf-8').split(":")
-          count = int(count) + 0
+          count = int(count) + 1
           currlocalPubCnt = self.localPubCnt + int(prevPubCnt)
           currlocalSubCnt = self.localSubCnt + int(prevSubCnt)
           currlocalBrokerCnt = self.localBrokerCnt + int(prevBrokerCnt)

@@ -1,101 +1,31 @@
-h1 python3 DiscoveryAppln.py -n disc29 -j dht.json -p 5555 -P 30 -S 30 > disc29.out 2>&1 &
-h2 python3 DiscoveryAppln.py -n disc4 -j dht.json -p 5555 -P 30 -S 30 > disc4.out 2>&1 &
-h2 python3 DiscoveryAppln.py -n disc8 -j dht.json -p 5556 -P 30 -S 30 > disc8.out 2>&1 &
-h2 python3 DiscoveryAppln.py -n disc26 -j dht.json -p 5557 -P 30 -S 30 > disc26.out 2>&1 &
-h2 python3 DiscoveryAppln.py -n disc30 -j dht.json -p 5558 -P 30 -S 30 > disc30.out 2>&1 &
-h3 python3 DiscoveryAppln.py -n disc32 -j dht.json -p 5555 -P 30 -S 30 > disc32.out 2>&1 &
-h4 python3 DiscoveryAppln.py -n disc2 -j dht.json -p 5555 -P 30 -S 30 > disc2.out 2>&1 &
-h4 python3 DiscoveryAppln.py -n disc33 -j dht.json -p 5556 -P 30 -S 30 > disc33.out 2>&1 &
-h6 python3 DiscoveryAppln.py -n disc9 -j dht.json -p 5555 -P 30 -S 30 > disc9.out 2>&1 &
-h6 python3 DiscoveryAppln.py -n disc34 -j dht.json -p 5556 -P 30 -S 30 > disc34.out 2>&1 &
-h7 python3 DiscoveryAppln.py -n disc23 -j dht.json -p 5555 -P 30 -S 30 > disc23.out 2>&1 &
-h7 python3 DiscoveryAppln.py -n disc37 -j dht.json -p 5556 -P 30 -S 30 > disc37.out 2>&1 &
-h8 python3 DiscoveryAppln.py -n disc5 -j dht.json -p 5555 -P 30 -S 30 > disc5.out 2>&1 &
-h8 python3 DiscoveryAppln.py -n disc36 -j dht.json -p 5556 -P 30 -S 30 > disc36.out 2>&1 &
-h9 python3 DiscoveryAppln.py -n disc6 -j dht.json -p 5555 -P 30 -S 30 > disc6.out 2>&1 &
-h9 python3 DiscoveryAppln.py -n disc16 -j dht.json -p 5556 -P 30 -S 30 > disc16.out 2>&1 &
-h9 python3 DiscoveryAppln.py -n disc22 -j dht.json -p 5557 -P 30 -S 30 > disc22.out 2>&1 &
-h10 python3 DiscoveryAppln.py -n disc7 -j dht.json -p 5555 -P 30 -S 30 > disc7.out 2>&1 &
-h10 python3 DiscoveryAppln.py -n disc19 -j dht.json -p 5556 -P 30 -S 30 > disc19.out 2>&1 &
-h10 python3 DiscoveryAppln.py -n disc35 -j dht.json -p 5557 -P 30 -S 30 > disc35.out 2>&1 &
-h11 python3 DiscoveryAppln.py -n disc3 -j dht.json -p 5555 -P 30 -S 30 > disc3.out 2>&1 &
-h11 python3 DiscoveryAppln.py -n disc11 -j dht.json -p 5556 -P 30 -S 30 > disc11.out 2>&1 &
-h11 python3 DiscoveryAppln.py -n disc13 -j dht.json -p 5557 -P 30 -S 30 > disc13.out 2>&1 &
-h12 python3 DiscoveryAppln.py -n disc17 -j dht.json -p 5555 -P 30 -S 30 > disc17.out 2>&1 &
-h12 python3 DiscoveryAppln.py -n disc25 -j dht.json -p 5556 -P 30 -S 30 > disc25.out 2>&1 &
-h13 python3 DiscoveryAppln.py -n disc12 -j dht.json -p 5555 -P 30 -S 30 > disc12.out 2>&1 &
-h15 python3 DiscoveryAppln.py -n disc10 -j dht.json -p 5555 -P 30 -S 30 > disc10.out 2>&1 &
-h15 python3 DiscoveryAppln.py -n disc31 -j dht.json -p 5556 -P 30 -S 30 > disc31.out 2>&1 &
-h15 python3 DiscoveryAppln.py -n disc40 -j dht.json -p 5557 -P 30 -S 30 > disc40.out 2>&1 &
-h16 python3 DiscoveryAppln.py -n disc18 -j dht.json -p 5555 -P 30 -S 30 > disc18.out 2>&1 &
-h17 python3 DiscoveryAppln.py -n disc14 -j dht.json -p 5555 -P 30 -S 30 > disc14.out 2>&1 &
-h17 python3 DiscoveryAppln.py -n disc20 -j dht.json -p 5556 -P 30 -S 30 > disc20.out 2>&1 &
-h17 python3 DiscoveryAppln.py -n disc38 -j dht.json -p 5557 -P 30 -S 30 > disc38.out 2>&1 &
-h18 python3 DiscoveryAppln.py -n disc1 -j dht.json -p 5555 -P 30 -S 30 > disc1.out 2>&1 &
-h18 python3 DiscoveryAppln.py -n disc15 -j dht.json -p 5556 -P 30 -S 30 > disc15.out 2>&1 &
-h18 python3 DiscoveryAppln.py -n disc21 -j dht.json -p 5557 -P 30 -S 30 > disc21.out 2>&1 &
-h18 python3 DiscoveryAppln.py -n disc39 -j dht.json -p 5558 -P 30 -S 30 > disc39.out 2>&1 &
-h19 python3 DiscoveryAppln.py -n disc27 -j dht.json -p 5555 -P 30 -S 30 > disc27.out 2>&1 &
-h20 python3 DiscoveryAppln.py -n disc24 -j dht.json -p 5555 -P 30 -S 30 > disc24.out 2>&1 &
-h20 python3 DiscoveryAppln.py -n disc28 -j dht.json -p 5556 -P 30 -S 30 > disc28.out 2>&1 &
-h1 python3 PublisherAppln.py -n pub9 -j dht.json -a 10.0.0.1 -p 7777 -T 7 -f 2 -i 3000 > pub9.out 2>&1 &
-h1 python3 PublisherAppln.py -n pub11 -j dht.json -a 10.0.0.1 -p 7776 -T 6 -f 1 -i 3000 > pub11.out 2>&1 &
-h1 python3 PublisherAppln.py -n pub12 -j dht.json -a 10.0.0.1 -p 7775 -T 7 -f 0.5 -i 2000 > pub12.out 2>&1 &
-h1 python3 PublisherAppln.py -n pub18 -j dht.json -a 10.0.0.1 -p 7774 -T 9 -f 1 -i 3000 > pub18.out 2>&1 &
-h1 python3 PublisherAppln.py -n pub26 -j dht.json -a 10.0.0.1 -p 7773 -T 8 -f 0.5 -i 2000 > pub26.out 2>&1 &
-h3 python3 PublisherAppln.py -n pub4 -j dht.json -a 10.0.0.3 -p 7777 -T 5 -f 0.75 -i 1000 > pub4.out 2>&1 &
-h3 python3 PublisherAppln.py -n pub21 -j dht.json -a 10.0.0.3 -p 7776 -T 7 -f 0.25 -i 1000 > pub21.out 2>&1 &
-h6 python3 PublisherAppln.py -n pub19 -j dht.json -a 10.0.0.6 -p 7777 -T 5 -f 3 -i 3000 > pub19.out 2>&1 &
-h7 python3 PublisherAppln.py -n pub20 -j dht.json -a 10.0.0.7 -p 7777 -T 9 -f 0.5 -i 1000 > pub20.out 2>&1 &
-h9 python3 PublisherAppln.py -n pub25 -j dht.json -a 10.0.0.9 -p 7777 -T 7 -f 4 -i 3000 > pub25.out 2>&1 &
-h9 python3 PublisherAppln.py -n pub29 -j dht.json -a 10.0.0.9 -p 7776 -T 6 -f 0.75 -i 1000 > pub29.out 2>&1 &
-h10 python3 PublisherAppln.py -n pub28 -j dht.json -a 10.0.0.10 -p 7777 -T 5 -f 0.25 -i 1000 > pub28.out 2>&1 &
-h11 python3 PublisherAppln.py -n pub10 -j dht.json -a 10.0.0.11 -p 7777 -T 6 -f 2 -i 1000 > pub10.out 2>&1 &
-h11 python3 PublisherAppln.py -n pub23 -j dht.json -a 10.0.0.11 -p 7776 -T 8 -f 0.25 -i 1000 > pub23.out 2>&1 &
-h12 python3 PublisherAppln.py -n pub2 -j dht.json -a 10.0.0.12 -p 7777 -T 5 -f 0.75 -i 1000 > pub2.out 2>&1 &
-h13 python3 PublisherAppln.py -n pub30 -j dht.json -a 10.0.0.13 -p 7777 -T 9 -f 4 -i 1000 > pub30.out 2>&1 &
-h14 python3 PublisherAppln.py -n pub1 -j dht.json -a 10.0.0.14 -p 7777 -T 5 -f 1 -i 1000 > pub1.out 2>&1 &
-h15 python3 PublisherAppln.py -n pub13 -j dht.json -a 10.0.0.15 -p 7777 -T 6 -f 2 -i 3000 > pub13.out 2>&1 &
-h15 python3 PublisherAppln.py -n pub15 -j dht.json -a 10.0.0.15 -p 7776 -T 5 -f 4 -i 1000 > pub15.out 2>&1 &
-h15 python3 PublisherAppln.py -n pub17 -j dht.json -a 10.0.0.15 -p 7775 -T 6 -f 0.75 -i 2000 > pub17.out 2>&1 &
-h16 python3 PublisherAppln.py -n pub24 -j dht.json -a 10.0.0.16 -p 7777 -T 9 -f 0.75 -i 2000 > pub24.out 2>&1 &
-h17 python3 PublisherAppln.py -n pub3 -j dht.json -a 10.0.0.17 -p 7777 -T 7 -f 0.75 -i 3000 > pub3.out 2>&1 &
-h17 python3 PublisherAppln.py -n pub7 -j dht.json -a 10.0.0.17 -p 7776 -T 8 -f 0.75 -i 3000 > pub7.out 2>&1 &
-h17 python3 PublisherAppln.py -n pub16 -j dht.json -a 10.0.0.17 -p 7775 -T 8 -f 0.75 -i 1000 > pub16.out 2>&1 &
-h18 python3 PublisherAppln.py -n pub8 -j dht.json -a 10.0.0.18 -p 7777 -T 8 -f 2 -i 1000 > pub8.out 2>&1 &
-h18 python3 PublisherAppln.py -n pub14 -j dht.json -a 10.0.0.18 -p 7776 -T 5 -f 2 -i 2000 > pub14.out 2>&1 &
-h18 python3 PublisherAppln.py -n pub27 -j dht.json -a 10.0.0.18 -p 7775 -T 7 -f 2 -i 3000 > pub27.out 2>&1 &
-h19 python3 PublisherAppln.py -n pub22 -j dht.json -a 10.0.0.19 -p 7777 -T 5 -f 4 -i 2000 > pub22.out 2>&1 &
-h20 python3 PublisherAppln.py -n pub5 -j dht.json -a 10.0.0.20 -p 7777 -T 7 -f 1 -i 2000 > pub5.out 2>&1 &
-h20 python3 PublisherAppln.py -n pub6 -j dht.json -a 10.0.0.20 -p 7776 -T 7 -f 0.25 -i 1000 > pub6.out 2>&1 &
-h1 python3 SubscriberAppln.py -n sub14 -j dht.json -T 9 > sub14.out 2>&1 &
-h3 python3 SubscriberAppln.py -n sub6 -j dht.json -T 9 > sub6.out 2>&1 &
-h3 python3 SubscriberAppln.py -n sub24 -j dht.json -T 9 > sub24.out 2>&1 &
-h6 python3 SubscriberAppln.py -n sub20 -j dht.json -T 9 > sub20.out 2>&1 &
-h7 python3 SubscriberAppln.py -n sub16 -j dht.json -T 9 > sub16.out 2>&1 &
-h7 python3 SubscriberAppln.py -n sub17 -j dht.json -T 9 > sub17.out 2>&1 &
-h7 python3 SubscriberAppln.py -n sub22 -j dht.json -T 9 > sub22.out 2>&1 &
-h9 python3 SubscriberAppln.py -n sub9 -j dht.json -T 9 > sub9.out 2>&1 &
-h10 python3 SubscriberAppln.py -n sub5 -j dht.json -T 9 > sub5.out 2>&1 &
-h10 python3 SubscriberAppln.py -n sub27 -j dht.json -T 9 > sub27.out 2>&1 &
-h11 python3 SubscriberAppln.py -n sub2 -j dht.json -T 9 > sub2.out 2>&1 &
-h11 python3 SubscriberAppln.py -n sub3 -j dht.json -T 9 > sub3.out 2>&1 &
-h12 python3 SubscriberAppln.py -n sub7 -j dht.json -T 9 > sub7.out 2>&1 &
-h12 python3 SubscriberAppln.py -n sub8 -j dht.json -T 9 > sub8.out 2>&1 &
-h12 python3 SubscriberAppln.py -n sub30 -j dht.json -T 9 > sub30.out 2>&1 &
-h13 python3 SubscriberAppln.py -n sub1 -j dht.json -T 9 > sub1.out 2>&1 &
-h14 python3 SubscriberAppln.py -n sub28 -j dht.json -T 9 > sub28.out 2>&1 &
-h14 python3 SubscriberAppln.py -n sub29 -j dht.json -T 9 > sub29.out 2>&1 &
-h15 python3 SubscriberAppln.py -n sub23 -j dht.json -T 9 > sub23.out 2>&1 &
-h16 python3 SubscriberAppln.py -n sub12 -j dht.json -T 9 > sub12.out 2>&1 &
-h16 python3 SubscriberAppln.py -n sub15 -j dht.json -T 9 > sub15.out 2>&1 &
-h16 python3 SubscriberAppln.py -n sub21 -j dht.json -T 9 > sub21.out 2>&1 &
-h17 python3 SubscriberAppln.py -n sub10 -j dht.json -T 9 > sub10.out 2>&1 &
-h18 python3 SubscriberAppln.py -n sub13 -j dht.json -T 9 > sub13.out 2>&1 &
-h18 python3 SubscriberAppln.py -n sub25 -j dht.json -T 9 > sub25.out 2>&1 &
-h19 python3 SubscriberAppln.py -n sub19 -j dht.json -T 9 > sub19.out 2>&1 &
-h20 python3 SubscriberAppln.py -n sub4 -j dht.json -T 9 > sub4.out 2>&1 &
-h20 python3 SubscriberAppln.py -n sub11 -j dht.json -T 9 > sub11.out 2>&1 &
-h20 python3 SubscriberAppln.py -n sub18 -j dht.json -T 9 > sub18.out 2>&1 &
-h20 python3 SubscriberAppln.py -n sub26 -j dht.json -T 9 > sub26.out 2>&1 &
-h2 python3 BrokerAppln.py -n broker1 -j dht.json -a 10.0.0.2 -p 7778 > broker1.out 2>&1 &
+h1 python3 DiscoveryAppln.py -n disc5 -j dht.json -p 5555 -P 5 -S 5 > disc5.out 2>&1 &
+h1 python3 DiscoveryAppln.py -n disc11 -j dht.json -p 5556 -P 5 -S 5 > disc11.out 2>&1 &
+h1 python3 DiscoveryAppln.py -n disc13 -j dht.json -p 5557 -P 5 -S 5 > disc13.out 2>&1 &
+h1 python3 DiscoveryAppln.py -n disc14 -j dht.json -p 5558 -P 5 -S 5 > disc14.out 2>&1 &
+h3 python3 DiscoveryAppln.py -n disc9 -j dht.json -p 5555 -P 5 -S 5 > disc9.out 2>&1 &
+h4 python3 DiscoveryAppln.py -n disc2 -j dht.json -p 5555 -P 5 -S 5 > disc2.out 2>&1 &
+h4 python3 DiscoveryAppln.py -n disc18 -j dht.json -p 5556 -P 5 -S 5 > disc18.out 2>&1 &
+h6 python3 DiscoveryAppln.py -n disc4 -j dht.json -p 5555 -P 5 -S 5 > disc4.out 2>&1 &
+h6 python3 DiscoveryAppln.py -n disc12 -j dht.json -p 5556 -P 5 -S 5 > disc12.out 2>&1 &
+h6 python3 DiscoveryAppln.py -n disc16 -j dht.json -p 5557 -P 5 -S 5 > disc16.out 2>&1 &
+h7 python3 DiscoveryAppln.py -n disc8 -j dht.json -p 5555 -P 5 -S 5 > disc8.out 2>&1 &
+h8 python3 DiscoveryAppln.py -n disc7 -j dht.json -p 5555 -P 5 -S 5 > disc7.out 2>&1 &
+h9 python3 DiscoveryAppln.py -n disc15 -j dht.json -p 5555 -P 5 -S 5 > disc15.out 2>&1 &
+h10 python3 DiscoveryAppln.py -n disc17 -j dht.json -p 5555 -P 5 -S 5 > disc17.out 2>&1 &
+h11 python3 DiscoveryAppln.py -n disc3 -j dht.json -p 5555 -P 5 -S 5 > disc3.out 2>&1 &
+h11 python3 DiscoveryAppln.py -n disc19 -j dht.json -p 5556 -P 5 -S 5 > disc19.out 2>&1 &
+h14 python3 DiscoveryAppln.py -n disc20 -j dht.json -p 5555 -P 5 -S 5 > disc20.out 2>&1 &
+h16 python3 DiscoveryAppln.py -n disc1 -j dht.json -p 5555 -P 5 -S 5 > disc1.out 2>&1 &
+h17 python3 DiscoveryAppln.py -n disc6 -j dht.json -p 5555 -P 5 -S 5 > disc6.out 2>&1 &
+h19 python3 DiscoveryAppln.py -n disc10 -j dht.json -p 5555 -P 5 -S 5 > disc10.out 2>&1 &
+h3 python3 PublisherAppln.py -n pub3 -j dht.json -a 10.0.0.3 -p 7777 -T 7 -f 4 -i 2000 > pub3.out 2>&1 &
+h13 python3 PublisherAppln.py -n pub1 -j dht.json -a 10.0.0.13 -p 7777 -T 8 -f 4 -i 2000 > pub1.out 2>&1 &
+h17 python3 PublisherAppln.py -n pub5 -j dht.json -a 10.0.0.17 -p 7777 -T 5 -f 0.25 -i 3000 > pub5.out 2>&1 &
+h19 python3 PublisherAppln.py -n pub2 -j dht.json -a 10.0.0.19 -p 7777 -T 9 -f 0.25 -i 1000 > pub2.out 2>&1 &
+h20 python3 PublisherAppln.py -n pub4 -j dht.json -a 10.0.0.20 -p 7777 -T 5 -f 0.75 -i 3000 > pub4.out 2>&1 &
+h7 python3 SubscriberAppln.py -n sub1 -j dht.json -T 9 > sub1.out 2>&1 &
+h7 python3 SubscriberAppln.py -n sub4 -j dht.json -T 9 > sub4.out 2>&1 &
+h8 python3 SubscriberAppln.py -n sub5 -j dht.json -T 9 > sub5.out 2>&1 &
+h14 python3 SubscriberAppln.py -n sub3 -j dht.json -T 9 > sub3.out 2>&1 &
+h20 python3 SubscriberAppln.py -n sub2 -j dht.json -T 9 > sub2.out 2>&1 &
+h6 python3 BrokerAppln.py -n broker1 -j dht.json -a 10.0.0.6 -p 7778 > broker1.out 2>&1 &
