@@ -143,10 +143,13 @@ def parseCmdLineArgs ():
   parser.add_argument ("-a", "--addr", default="localhost", help="IP addr of this publisher to advertise (default: localhost)")
 
   parser.add_argument ("-p", "--port", default="5555", help="Port number on which our underlying discovery ZMQ service runs, default=5577")
-    
+ 
+  parser.add_argument ("-pp", "--pubPort", default="8888", help="Port number on which our underlying publisher ZMQ service runs, default=8888")
+ 
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 
   parser.add_argument ("-P", "--P", default=1, type=int, help="the number of publishers")
+
   parser.add_argument ("-S", "--S", default=1, type=int, help="the number of subscribers")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")

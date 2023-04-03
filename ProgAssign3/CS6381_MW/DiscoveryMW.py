@@ -68,7 +68,8 @@ class DiscoveryMW ():
       # First retrieve our advertised IP addr and the publication port num
       self.port = args.port
       self.addr = args.addr
-      
+      self.pubPort = args.pubPort
+
       # Next get the ZMQ context
       self.logger.debug ("DiscoveryMW::configure - obtain ZMQ context")
       context = zmq.Context ()  # returns a singleton object
@@ -84,6 +85,11 @@ class DiscoveryMW ():
       # We always use TCP as the transport mechanism (at least for these assignments)
       bind_string = "tcp://*:" + self.port
       self.rep.bind (bind_string)
+
+
+      self.pub = context.socket (zmq.PUB)
+      bind_string = "tcp://*:" + self.pubPort
+      self.pub.bind (bind_string)
 
       # set the number of machines participating
       self.pubCnt = args.P
@@ -113,7 +119,7 @@ class DiscoveryMW ():
   # broadcasr the change of leader
   ################
   def broadcast_leader(self, type, leader):
-    pass
+    self.pub.send_multipart([bytes(type, 'utf-8'), leader])
 
   ######################
   # temparory function
