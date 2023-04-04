@@ -1,6 +1,4 @@
 import sys
-import time
-import threading
 from kazoo.client import KazooClient
 from kazoo.client import KazooState
 from kazoo.exceptions import NoNodeError
@@ -16,7 +14,7 @@ class ZKAdapter():
     #################################################################
     # constructor
     #################################################################
-    def __init__ (self, args, logger, callback):
+    def __init__ (self, args, logger, callback=None):
         """constructor"""
         self.logger = logger
         self.zkIPAddr = 'localhost'  # ZK server IP address
@@ -37,6 +35,7 @@ class ZKAdapter():
         self.discLeaderPath = self.leader_path + "/discovery"
         self.brokerLeaderPath = self.leader_path + "/broker"
         self.callback = callback
+        self.barrier = False
 
     # Debugging: Dump the contents
 
@@ -194,15 +193,38 @@ class ZKAdapter():
             raise
 
 
+    def leader_watcher (self, leader_path):
+        """Utility function which enables 
+        publishers/subscribers/brokers 
+        to watch the leader znode"""
+        try:
+            @self.zk.DataWatch(leader_path)
+            def callback (data, stat, event):
+                """if the primary entity(broker/discovery service) goes down, elect a new one"""
+                self.logger.debug ("ZookeeperAdapter::watch -- data = {}, stat = {}, event = {}".format (data, stat, event))
+                if event is not None:
+                    if event.type == "CREATE" or event.type == "CHANGED":
+                        self.logger.debug ("ZookeeperAdapter::watch -- primary entity created/changed")
+                        data, stat = self.zk.get(leader_path) 
+                        self.logger.debug ("ZookeeperAdapter::watch -- set leader to {}".format (data))
+                        return data
+                else:
+                    return None
+        except:
+            self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+            raise
+        
+
     def leader_change_watcher (self, path, leader_path):
-        """Watch a znode"""
+        """Utility function which enables discoveryMW to watch the leader znode 
+        and elect a new leader if the current leader goes down"""
         try:
             @self.zk.DataWatch(path)
             def callback (data, stat, event):
                 """if the primary entity(broker/discovery service) goes down, elect a new one"""
                 self.logger.debug ("ZookeeperAdapter::watch -- data = {}, stat = {}, event = {}".format (data, stat, event))
                 if event is not None:
-                    if event.type == "DELETED":
+                    if event.type == "DELETED" or event.type == "CREATED":
                         self.logger.debug ("ZookeeperAdapter::watch -- primary entity goes down")
                         leader = self.elect_leader (path)
                         self.set_leader (leader_path, leader)

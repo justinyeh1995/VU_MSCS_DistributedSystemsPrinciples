@@ -33,7 +33,6 @@ import time   # for sleep
 import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
-import random # needed in the topic selection using random numbers
 
 
 # Import our topic selector. Feel free to use alternate way to
@@ -90,9 +89,11 @@ class SubscriberAppln ():
       # Now setup up our underlying middleware object to which we delegate
       # everything
       self.logger.debug ("SubscriberAppln::configure - initialize the middleware object")
-      self.mw_obj = SubscriberMW (self.logger)
+      self.mw_obj = SubscriberMW (self.logger, self.topiclist)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("SubscriberAppln::configure - configuration complete")
+
+      self.mw_obj.invoke_zk(args=args,logger=self.logger)
       
     except Exception as e:
       raise e
@@ -108,17 +109,27 @@ class SubscriberAppln ():
 
       # dump our contents (debugging purposes)
       self.dump ()
+      
+      # Invoke zk adaptor 
+      self.logger.debug ("SubscriberAppln::driver - invoke zk adaptor")
+      
+      # Wait for the new-born discovery leader
+      while True:
+          if self.mw_obj.on_leader_change(type="discovery"):
+              break
+          time.sleep(1)
+      #-------------------------------------------------
+      if self.lookup == "ViaBroker":  
+        while True:
+          if self.mw_obj.on_leader_change(type="broker"):
+              break
+          time.sleep(1)
+      #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("SubscriberAppln::driver - register with the discovery service")
       result = self.mw_obj.register (self.name, self.topiclist)
       self.logger.debug ("SubscriberAppln::driver - result of registration".format (result))
-
-      # Now keep checking with the discovery service if we are ready to go
-      self.logger.debug ("SubscriberAppln::driver - check if are ready to go")
-      while (not self.mw_obj.is_ready ()):
-        time.sleep (5)  # sleep between calls so that we don't make excessive calls
-        self.logger.debug ("SubscriberAppln::driver - check again if are ready to go")
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
@@ -128,6 +139,14 @@ class SubscriberAppln ():
       self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
+          #-------------------------------------------------          
+          if self.mw_obj.on_leader_change(type="discovery"):
+            if self.lookup == "Direct":
+              self.mw_obj.lookup_topic (self.topiclist)
+          #-------------------------------------------------
+          if self.lookup == "ViaBroker":  
+              self.mw_obj.on_leader_change(type="broker")
+          #-------------------------------------------------
           # pass each topic to mw
           self.mw_obj.subscribe()
 

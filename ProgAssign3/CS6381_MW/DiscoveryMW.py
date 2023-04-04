@@ -31,6 +31,7 @@ import threading
 # import serialization logic
 from CS6381_MW import discovery_pb2
 from CS6381_MW import ZookeeperAPI
+from kazoo.exceptions import ZookeeperError
 
 # import any other packages you need.
 
@@ -95,24 +96,22 @@ class DiscoveryMW ():
       self.pubCnt = args.P
       self.subCnt = args.S
 
-      # start the zookeeper adapter in a separate thread
-      self.zk_adapter = ZookeeperAPI.ZKAdapter(args, self.logger, self.on_leader_change)
-      
-      thread = threading.Thread(target=self.zk_adapter.run)
-      thread.start()
+      self.configure_zk (args, self.logger)
 
     except Exception as e:
       raise e
 
 
   ################
-  # on_leader_change
+  # update_leader
   ################
-  def on_leader_change(self, type, leader):
+  def update_leader(self, type, leader):
     if type == "discovery":
       self.disc_leader = leader
+      self.broadcast_leader(type, leader)
     elif type == "broker":
       self.broker_leader = leader
+      self.broadcast_leader(type, leader)
 
 
   ################
@@ -120,6 +119,59 @@ class DiscoveryMW ():
   ################
   def broadcast_leader(self, type, leader):
     self.pub.send_multipart([bytes(type, 'utf-8'), leader])
+
+
+  def invoke_zk (self, args, logger):
+      """The actual logic of the driver program """
+
+      try:
+
+          # start the zookeeper adapter in a separate thread
+          self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
+
+          #-----------------------------------------------------------
+          self.zk_obj.start ()
+
+          #-----------------------------------------------------------
+          self.zk_obj.init_zkclient ()
+
+          #-----------------------------------------------------------
+          self.zk_obj.configure ()
+
+          #-----------------------------------------------------------
+          disc_leader = self.zk_obj.elect_leader (self.zk_obj.discoveryPath)
+          broker_leader = self.zk_obj.elect_leader (self.zk_obj.brokerPath)
+
+          self.zk_obj.set_leader (self.zk_obj.discLeaderPath, disc_leader)
+          self.zk_obj.set_leader (self.zk_obj.brokerLeaderPath, broker_leader)
+
+          self.on_leader_change ("discovery", disc_leader)
+          self.on_leader_change ("broker", broker_leader)
+
+          #-----------------------------------------------------------
+      except ZookeeperError as e:
+          self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+          raise
+      
+
+  def on_leader_change(self, type, leader):
+    """subscribe on leader change"""
+    try:
+      if type == "discovery":
+        path, leader_path = self.zk_obj.discLeaderPath, self.zk_obj.discLeaderPath
+      elif type == "broker":
+        path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
+      
+      decision = self.zk_obj.leader_change_watcher (path, leader_path)
+      if decision is not None:
+        self.update_leader (type, decision)
+        
+    except ZookeeperError as e:
+        self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+        raise
+    except:
+        self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
+        raise
 
   ######################
   # temparory function
@@ -315,15 +367,28 @@ class DiscoveryMW ():
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
 
       if role == discovery_pb2.ROLE_SUBSCRIBER:
-        for name, detail in self.registry.items():
-          if ((self.dissemination == "Direct" and detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist))
-            or (self.dissemination == "ViaBroker" and detail["role"] == "broker" and set(detail["topiclist"]) & set(topiclist))):
-            info = discovery_pb2.RegistrantInfo ()
-            info.id = name
-            info.addr = detail["addr"]
-            info.port = detail["port"]
-            info.timestamp = detail["timestamp"]
-            topic_msg.publishers.append(info)
+        if self.dissemination == "Direct":
+          for name, detail in self.registry.items():
+            if (detail["role"] == "pub" 
+                and set(detail["topiclist"]) & set(topiclist)):
+              info = discovery_pb2.RegistrantInfo ()
+              info.id = name
+              info.addr = detail["addr"]
+              info.port = detail["port"]
+              info.timestamp = detail["timestamp"]
+              topic_msg.publishers.append(info)
+
+        elif self.dissemination == "viabroker": 
+          for name, detail in self.registry.items():
+            if (detail["role"] == "broker" 
+                and set(detail["topiclist"]) & set(topiclist) 
+                and detail["addr"] + ":" + str(detail["port"]) == self.broker_leader.decode("utf-8")):
+              info = discovery_pb2.RegistrantInfo ()
+              info.id = name
+              info.addr = detail["addr"]
+              info.port = detail["port"]
+              info.timestamp = detail["timestamp"]
+              topic_msg.publishers.append(info)
 
       elif role == discovery_pb2.ROLE_BOTH:
         for name, detail in self.registry.items():

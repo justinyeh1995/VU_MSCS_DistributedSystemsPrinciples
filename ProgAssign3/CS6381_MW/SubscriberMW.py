@@ -44,7 +44,8 @@ import zmq  # ZMQ sockets
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
-import time
+from CS6381_MW import ZookeeperAPI 
+from kazoo.exceptions import ZookeeperError
 
 # import any other packages you need.
 
@@ -56,13 +57,14 @@ class SubscriberMW ():
   ########################################
   # constructor
   ########################################
-  def __init__ (self, logger):
+  def __init__ (self, logger, topiclist):
     self.logger = logger  # internal logger for print statements
     self.sub = None # will be a ZMQ SUB socket for dissemination
     self.req = None # will be a ZMQ REQ socket to talk to Discovery service
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to sublish our topics
+    self.topiclist = topiclist # list of topics we are interested in
 
   ########################################
   # configure/initialize
@@ -106,11 +108,109 @@ class SubscriberMW ():
     except Exception as e:
       raise e
 
+
+  ########################################
+  # start the middleware
+  ########################################
+  def invoke_zk(self, args, logger):
+      try:
+        # start the zookeeper adapter in a separate thread
+        self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
+        #-----------------------------------------------------------
+        self.zk_obj.start ()
+        #-----------------------------------------------------------
+        self.zk_obj.init_zkclient ()
+        #-----------------------------------------------------------
+        self.zk_obj.configure ()
+      
+      except Exception as e:
+        raise e
+
+
+  def update_leader (self, type, leader):
+    if type == "discovery":
+      self.disc_leader = leader
+
+    elif type == "broker":
+      self.broker_leader = leader
+
+
+  def reconnect (self, type, path):
+    try:
+      if type == "discovery":
+        #--------------------------------------
+        self.req.close()
+        #--------------------------------------
+        time.sleep(1)
+        #--------------------------------------
+        context = zmq.Context()
+        self.req = context.socket(zmq.REQ)
+        # Connet to the broker
+        #--------------------------------------
+        data, stat = self.zk_obj.get(path) 
+        conn_string = data.decode('utf-8')
+        #--------------------------------------
+        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.req.connect(conn_string)
+      
+      elif type == "broker":
+        #--------------------------------------
+        self.sub.close()
+        #--------------------------------------
+        time.sleep(1)
+        #--------------------------------------
+        context = zmq.Context()
+        self.sub = context.socket(zmq.SUB)
+        # Connet to the broker
+        #--------------------------------------
+        data, stat = self.zk_obj.get(path) 
+        conn_string = data.decode('utf-8')
+        #--------------------------------------
+        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.sub.connect(conn_string)
+        #--------------------------------------
+        for topic in self.topiclist:
+          self.sub.setsockopt(zmq.SUBSCRIBE, topic.encode('utf-8'))
+        #--------------------------------------
+        self.poller.register (self.sub, zmq.POLLIN)
+
+    except Exception as e:
+      raise e
+    
+
+  def on_leader_change (self, type):
+    """subscribe on leader change"""
+    try:
+      # ------------------------------
+      if type == "discovery":
+        path, leader_path = self.zk_obj.discLeaderPath, self.zk_obj.discLeaderPath
+      elif type == "broker":
+        path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
+      #-------------------------------
+      decision = self.zk_obj.leader_watcher (path, leader_path)
+      #-------------------------------
+      if decision is not None:
+        self.update_leader (type, decision)
+        # reconnection
+        self.reconnect (type, path)
+        #-------------------------------
+      return decision
+      #-------------------------------
+    except ZookeeperError as e:
+        self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+        raise
+    except:
+        self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
+        raise
+
+  #---------------------------------------------------------------------------------------------
+
   ######################
   # temparory function
   ######################
   def setDissemination (self, dissemination):
       self.dissemination = dissemination
+
 
   ########################################
   # register with the discovery service
@@ -171,52 +271,6 @@ class SubscriberMW ():
     except Exception as e:
       raise e
 
-  ########################################
-  # check if the discovery service gives us a green signal to proceed
-  ########################################
-  def is_ready (self):
-    ''' register the appln with the discovery service '''
-
-    try:
-      self.logger.debug ("SubscriberMW::is_ready")
-
-      # we do a similar kind of serialization as we did in the register
-      # message but much simpler, and then send the request to
-      # the discovery service
-    
-      # The following code shows serialization using the protobuf generated code.
-      
-      # first build a IsReady message
-      self.logger.debug ("SubscriberMW::is_ready - populate the nested IsReady msg")
-      isready_msg = discovery_pb2.IsReadyReq ()  # allocate 
-      # actually, there is nothing inside that msg declaration.
-      self.logger.debug ("SubscriberMW::is_ready - done populating nested IsReady msg")
-
-      # Build the outer layer Discovery Message
-      self.logger.debug ("SubscriberMW::is_ready - build the outer DiscoveryReq message")
-      disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.TYPE_ISREADY
-      # It was observed that we cannot directly assign the nested field here.
-      # A way around is to use the CopyFrom method as shown
-      disc_req.isready_req.CopyFrom (isready_msg)
-      self.logger.debug ("SubscriberMW::is_ready - done building the outer message")
-      
-      # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
-      # a real string
-      buf2send = disc_req.SerializeToString ()
-      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
-
-      # now send this to our discovery service
-      self.logger.debug ("SubscriberMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
-      
-      # now go to our event loop to receive a response to this request
-      self.logger.debug ("SubscriberMW::is_ready - now wait for reply")
-      return self.event_loop ()
-      
-    except Exception as e:
-      raise e
-
 
   ######################
   ## Look Up by Topic ##
@@ -261,6 +315,24 @@ class SubscriberMW ():
     except Exception as e:
       raise e
 
+
+  #################################################################
+  # subscribe the data on our sub socket
+  #################################################################
+  def subscribe (self):
+    try:
+      self.logger.debug ("SubscriberMW::subscribe")
+      message = self.sub.recv_string()
+      topic, content, dissemTime = message.split(":")
+      
+      #self.logger.debug ("Latency = {}".format (timeit.default_timer() - float(dissemTime)))
+      self.logger.debug ("Latency = {}".format (1000*(time.monotonic() - float(dissemTime))))
+      self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
+
+    except Exception as e:
+      raise e
+            
+
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
   #################################################################
@@ -282,6 +354,7 @@ class SubscriberMW ():
     except Exception as e:
       raise e
             
+
   #################################################################
   # handle an incoming reply
   #################################################################
@@ -320,20 +393,3 @@ class SubscriberMW ():
       raise e
             
             
-  #################################################################
-  # subscribe the data on our sub socket
-  #################################################################
-  def subscribe (self):
-    try:
-      self.logger.debug ("SubscriberMW::subscribe")
-      message = self.sub.recv_string()
-      topic, content, dissemTime = message.split(":")
-      
-      #self.logger.debug ("Latency = {}".format (timeit.default_timer() - float(dissemTime)))
-      self.logger.debug ("Latency = {}".format (1000*(time.monotonic() - float(dissemTime))))
-      self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
-
-    except Exception as e:
-      raise e
-            
-
