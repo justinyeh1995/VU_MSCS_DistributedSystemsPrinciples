@@ -96,7 +96,7 @@ class DiscoveryMW ():
       self.pubCnt = args.P
       self.subCnt = args.S
 
-      self.configure_zk (args, self.logger)
+      self.invoke_zk (args, self.logger)
 
     except Exception as e:
       raise e
@@ -108,10 +108,8 @@ class DiscoveryMW ():
   def update_leader(self, type, leader):
     if type == "discovery":
       self.disc_leader = leader
-      self.broadcast_leader(type, leader)
     elif type == "broker":
       self.broker_leader = leader
-      self.broadcast_leader(type, leader)
 
 
   ################
@@ -128,33 +126,20 @@ class DiscoveryMW ():
 
           # start the zookeeper adapter in a separate thread
           self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
-
           #-----------------------------------------------------------
           self.zk_obj.start ()
-
           #-----------------------------------------------------------
           self.zk_obj.init_zkclient ()
-
           #-----------------------------------------------------------
           self.zk_obj.configure ()
-
           #-----------------------------------------------------------
-          disc_leader = self.zk_obj.elect_leader (self.zk_obj.discoveryPath)
-          broker_leader = self.zk_obj.elect_leader (self.zk_obj.brokerPath)
 
-          self.zk_obj.set_leader (self.zk_obj.discLeaderPath, disc_leader)
-          self.zk_obj.set_leader (self.zk_obj.brokerLeaderPath, broker_leader)
-
-          self.on_leader_change ("discovery", disc_leader)
-          self.on_leader_change ("broker", broker_leader)
-
-          #-----------------------------------------------------------
       except ZookeeperError as e:
           self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
           raise
       
 
-  def on_leader_change(self, type, leader):
+  def on_leader_change(self, type):
     """subscribe on leader change"""
     try:
       if type == "discovery":
@@ -165,13 +150,21 @@ class DiscoveryMW ():
       decision = self.zk_obj.leader_change_watcher (path, leader_path)
       if decision is not None:
         self.update_leader (type, decision)
-        
+        #self.broadcast_leader(type, decision)
+
+      return decision 
+    
     except ZookeeperError as e:
         self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+        raise
+    except Exception as e:
+        self.logger.debug  ("ZookeeperAdapter::run_driver -- Exception: {}".format (e))
         raise
     except:
         self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
         raise
+    
+  #------------------------------------------------------------------------------------- 
 
   ######################
   # temparory function
@@ -225,7 +218,7 @@ class DiscoveryMW ():
                                 "name": uid}
                                  
 
-        self.zk_api.add_node(self.register[uid])
+        self.zk_obj.register_node (self.registry[uid])
 
       elif role == discovery_pb2.ROLE_BOTH:
         
@@ -245,7 +238,7 @@ class DiscoveryMW ():
                                 "name": uid, 
                                 "topiclist": topiclist}
 
-        self.zk_api.add_node(self.register[uid])
+        self.zk_obj.register_node(self.register[uid])
         
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)

@@ -154,45 +154,6 @@ class ZKAdapter():
             raise
 
 
-    def get_broker_list (self):
-        """Get the list of brokers"""
-        try:
-            if self.zk.exists (self.brokerPath):
-                broker_list = self.zk.get_children (self.brokerPath)
-                return broker_list
-            else:
-                return None
-        except:
-            self.logger.debug ("Unexpected error in get_broker_list:", sys.exc_info()[0])
-            raise
-
-
-    def get_pub_list (self):
-        """Get the list of publishers"""
-        try:
-            if self.zk.exists (self.pubPath):
-                pub_list = self.zk.get_children (self.pubPath)
-                return pub_list
-            else:
-                return None
-        except:
-            self.logger.debug ("Unexpected error in get_pub_list:", sys.exc_info()[0])
-            raise
-
-
-    def get_sub_list (self):
-        """Get the list of subscribers"""
-        try:
-            if self.zk.exists (self.subPath):
-                sub_list = self.zk.get_children (self.subPath)
-                return sub_list
-            else:
-                return None
-        except:
-            self.logger.debug ("Unexpected error in get_sub_list:", sys.exc_info()[0])
-            raise
-
-
     def leader_watcher (self, leader_path):
         """Utility function which enables 
         publishers/subscribers/brokers 
@@ -289,57 +250,6 @@ class ZKAdapter():
                 return None
         except:
             self.logger.debug ("Unexpected error in get_leader:", sys.exc_info()[0])
-            raise
-
-
-    # -----------------------------------------------------------------------
-    # Run the driver
-    #
-    # Our logic is such that we first create the znode with value 0
-    # Then we create the application threads. Each thread creates a child
-    # node under the main znode, which should notify the driver. Everytime
-    # the driver is notified, it will update the value in the znode
-    # At the same time, the threads are waiting on the znode's value. The
-    # moment they see the barrier reached, they declare victory :-)
-    # -----------------------------------------------------------------------
-    def run (self):
-        """The actual logic of the driver program """
-
-        try:
-
-            #-----------------------------------------------------------
-            self.start ()
-
-            #-----------------------------------------------------------
-            self.init_zkclient ()
-
-            #-----------------------------------------------------------
-            self.configure ()
-
-            #-----------------------------------------------------------
-            disc_leader = self.elect_leader (self.discoveryPath)
-            broker_leader = self.elect_leader (self.brokerPath)
-
-            self.set_leader (self.discLeaderPath, disc_leader)
-            self.set_leader (self.brokerLeaderPath, broker_leader)
-
-            self.callback ("disc", disc_leader)
-            self.callback ("broker", broker_leader)
-
-            #-----------------------------------------------------------
-            while True:
-                decision = self.leader_change_watcher (self.discoveryPath, self.discLeaderPath)
-                if decision is not None:
-                    self.callback ("disc", decision)
-                decision = self.leader_change_watcher (self.brokerPath, self.brokerLeaderPath)
-                if decision is not None:
-                    self.callback ("broker", decision)
-
-        except ZookeeperError as e:
-            self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
-            raise
-        except:
-            self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
             raise
 
 
