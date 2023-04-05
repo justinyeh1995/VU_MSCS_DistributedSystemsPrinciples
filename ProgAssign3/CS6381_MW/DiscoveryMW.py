@@ -26,7 +26,7 @@ import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
 import collections
-import threading
+import json
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -87,10 +87,16 @@ class DiscoveryMW ():
       bind_string = "tcp://*:" + self.port
       self.rep.bind (bind_string)
 
-
       self.pub = context.socket (zmq.PUB)
       bind_string = "tcp://*:" + self.pubPort
       self.pub.bind (bind_string)
+
+      self.sub = context.socket (zmq.SUB)
+
+      # Now create a poller object
+      self.logger.debug ("DiscoveryMW::configure - create poller object")
+      self.poller = zmq.Poller ()
+      self.poller.register (self.rep, zmq.POLLIN) # register the REP socket for incoming requests
 
       # set the number of machines participating
       self.pubCnt = args.P
@@ -115,8 +121,33 @@ class DiscoveryMW ():
   ################
   # broadcasr the change of leader
   ################
-  def broadcast_leader(self, type, leader):
-    self.pub.send_multipart([bytes(type, 'utf-8'), leader])
+  def broadcast_to_discovery_nodes(self, info):
+    self.pub.send_multipart([b"", b"discovery", info])
+
+
+  ################
+  # get other discovery nodes in the cluster
+  ################
+  def get_discovery_nodes(self):
+    @self.zk_obj.zkclient.ChildrenWatch(self.zk_obj.discPath)
+    def watch_children(children):
+      self.logger.debug("DiscoveryMW::get_discovery_nodes - children: {}".format(children))
+      self.discovery_nodes = children
+      self.logger.debug("DiscoveryMW::get_discovery_nodes - discovery_nodes: {}".format(self.discovery_nodes))
+      return children
+
+
+  ################
+  # subscribe to other discovery nodes in the cluster
+  ################
+  def connect_discovery_nodes(self):
+    for node in self.discovery_nodes:
+      if node != self.addr + ":" + str(self.port):
+        self.logger.debug("DiscoveryMW::connect_discovery_nodes - node: {}".format(node))
+        self.sub.connect("tcp://" + node)
+        self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
+    self.logger.debug ("DiscoveryMW::connect_discovery_nodes - subscribe to discovery nodes")
+    self.poller.register (self.sub, zmq.POLLIN)
 
 
   def invoke_zk (self, args, logger):
@@ -204,7 +235,7 @@ class DiscoveryMW ():
                                 "name": uid, 
                                 "topiclist": topiclist}
 
-        self.zk_api.add_node(self.register[uid])
+        self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
         
@@ -216,9 +247,8 @@ class DiscoveryMW ():
                                 "addr": addr,
                                 "port": port,
                                 "name": uid}
-                                 
 
-        self.zk_obj.register_node (self.registry[uid])
+        self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
 
       elif role == discovery_pb2.ROLE_BOTH:
         
@@ -237,9 +267,9 @@ class DiscoveryMW ():
                                 "port": port,  
                                 "name": uid, 
                                 "topiclist": topiclist}
-
-        self.zk_obj.register_node(self.register[uid])
         
+        self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
+
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
 
@@ -424,18 +454,29 @@ class DiscoveryMW ():
       self.logger.debug ("DiscoveryMW::event_loop - run the event loop")
 
       while True:
-      
-        # the only socket that should be enabled, if at all, is our REQ socket.
-        bytesMsg = self.rep.recv() 
-        print(bytesMsg)
-        resp = self.handle_request (bytesMsg)
-        # now send this to our discovery service
-        self.logger.debug ("DiscoveryMW:: send stringified buffer back to publishers/subscribers")
-        self.rep.send (resp)  # we use the "send" method of ZMQ that sends the bytes
-        ###########
-        ## TO-DO ##
-        ###########
-        # make an upcall here???
+        events = dict(self.poller.poll())
+
+        if self.rep in events:
+          # the only socket that should be enabled, if at all, is our REQ socket.
+          bytesMsg = self.rep.recv() 
+          print(bytesMsg)
+          resp = self.handle_request (bytesMsg)
+          # now send this to our discovery service
+          self.logger.debug ("DiscoveryMW:: send stringified buffer back to publishers/subscribers")
+          self.rep.send (resp)  # we use the "send" method of ZMQ that sends the bytes
+        
+        elif self.sub in events:
+          # we received a message from other discovery services
+          self.logger.debug ("DiscoveryMW::event_loop - heartbeat msg - received a message from other discovery services")
+          self.logger.debug ("DiscoveryMW::event_loop - perform the merge")
+          incoming_msg = self.sub.recv_multipart()
+          register_msg = incoming_msg[-1]
+          register_msg = json.loads(register_msg.decode("utf-8"))
+          uid = register_msg["name"]
+          if uid not in self.registry:
+            self.registry[uid] = register_msg
+
+          self.logger.debug ("DiscoveryMW::event_loop - now the registry looks like: {}".format(self.registry))
 
     except Exception as e:
       raise e
