@@ -66,7 +66,7 @@ class DiscoveryMW ():
       # First retrieve our advertised IP addr and the publication port num
       self.port = args.port
       self.addr = args.addr
-      self.pubPort = args.pubPort
+      self.pub_port = args.pub_port
 
       # Next get the ZMQ context
       self.logger.debug ("DiscoveryMW::configure - obtain ZMQ context")
@@ -85,7 +85,7 @@ class DiscoveryMW ():
       self.rep.bind (bind_string)
 
       self.pub = context.socket (zmq.PUB)
-      bind_string = "tcp://*:" + self.pubPort
+      bind_string = "tcp://*:" + self.pub_port
       self.pub.bind (bind_string)
 
       #------------------------------------------
@@ -105,6 +105,9 @@ class DiscoveryMW ():
       self.poller = zmq.Poller ()
       self.poller.register (self.rep, zmq.POLLIN) # register the REP socket for incoming requests
       self.poller.register (self.sub, zmq.POLLIN) # register the SUB socket for incoming requests
+
+      # Register the discovery node
+      self.zk_obj.register_discovery_node(self.addr + ":" + str(self.port))
 
 
     except Exception as e:
@@ -218,7 +221,7 @@ class DiscoveryMW ():
   ########################################
   # save info to storage 
   ########################################
-  def register (self, request):
+  def handle_register (self, request):
     '''handle registrations'''
     try:
       self.logger.debug ("DiscoveryMW::Providing Registration service")
@@ -229,14 +232,11 @@ class DiscoveryMW ():
       role = req_info.role
 
       if role == discovery_pb2.ROLE_PUBLISHER:
-        
-        self.pubCnt -= 1
-        
+                
         self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
         uid = registrant.id
         addr = registrant.addr 
         port = registrant.port
-        ts = registrant.timestamp
         topiclist = req_info.topiclist
 
         self.logger.debug ("DiscoveryMW::Storing Publisher's information")
@@ -250,8 +250,6 @@ class DiscoveryMW ():
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
         
-        self.subCnt -= 1
-
         self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
         uid = registrant.id
         self.registry[uid] = {"role": "sub",
@@ -263,13 +261,10 @@ class DiscoveryMW ():
 
       elif role == discovery_pb2.ROLE_BOTH:
         
-        self.brokerCnt -= 1
-        
         self.logger.debug ("DiscoveryMW::Publishers::Parsing Discovery Request")
         uid = registrant.id
         addr = registrant.addr 
         port = registrant.port
-        ts = registrant.timestamp
         topiclist = req_info.topiclist
 
         self.logger.debug ("DiscoveryMW::Storing Broker's information")
@@ -280,7 +275,7 @@ class DiscoveryMW ():
                                 "topiclist": topiclist}
         
         self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
-        self.zk_obj.register_node (self.registry[uid])
+        self.zk_obj.register_node (self.registry[uid]) # register broker node in zookeeper
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
@@ -292,7 +287,7 @@ class DiscoveryMW ():
   ########################################
   # deregister info from storage
   ########################################
-  def deregister (self, name):
+  def handle_deregister (self, name):
     '''handle deregistrations'''
     try:
       self.logger.debug ("DiscoveryMW::Providing Deregistration service")
@@ -444,9 +439,11 @@ class DiscoveryMW ():
           # we received a message from other discovery services
           self.logger.debug ("DiscoveryMW::event_loop - heartbeat msg - received a message from other discovery services")
           self.logger.debug ("DiscoveryMW::event_loop - perform the merge")
+          #----------------------------------------------------------
           incoming_msg = self.sub.recv_multipart()
           register_msg = incoming_msg[-1]
           register_msg = json.loads(register_msg.decode("utf-8"))
+          #----------------------------------------------------------
           uid = register_msg["name"]
           if uid not in self.registry:
             self.registry[uid] = register_msg
@@ -474,19 +471,15 @@ class DiscoveryMW ():
 
       if (request.msg_type == discovery_pb2.TYPE_REGISTER):
         # registraions
-        self.register(request)
+        self.handle_register(request)
         # this is a response to register message
         resp = self.gen_register_resp()
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_DEREGISTER):
         # deregistrations
-        self.deregister(request)
+        self.handle_deregister(request)
         # this is a response to register message
         resp = self.gen_register_resp() # same as register
-        return resp
-      elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
-        # this is a response to is ready request
-        resp = self.gen_ready_resp()
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request

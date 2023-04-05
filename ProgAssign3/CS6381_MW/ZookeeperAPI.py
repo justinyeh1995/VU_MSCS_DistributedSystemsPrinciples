@@ -25,7 +25,7 @@ class ZKAdapter():
         self.name = args.name
         self.conn_string = self.addr + ":" + str (self.port)
         #---------------------------------------------------
-        self.root_path = "/home/"
+        self.root_path = "/home"
         self.discoveryPath = self.root_path + "/discovery" # refers to the znode path being manipulated
         self.brokerPath = self.root_path + "/broker"  # refers to the znode path being manipulated
         self.path = self.discoveryPath + "/" + self.name # refers to the znode path where this node is registered
@@ -49,7 +49,6 @@ class ZKAdapter():
     # Initialize the driver
     def init_zkclient (self):
         """Initialize the client driver program"""
-
         try:
             # debug output
             self.dump ()
@@ -79,7 +78,7 @@ class ZKAdapter():
             raise
 
 
-    def create_node (self):
+    def register_discovery_node (self, value):
         """Configure the client driver program"""
         try:
             # next, create a znode for the discovery service with initial value of its address
@@ -92,7 +91,7 @@ class ZKAdapter():
             self.zk.ensure_path (self.discLeaderPath)
             self.zk.ensure_path (self.brokerLeaderPath)
             #-------------------------------------------
-            self.zk.create (self.path, value=self.conn_string.encode('utf-8'), makepath=True)
+            self.zk.create (self.path, value=value.encode('utf-8'), makepath=True)
         
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::configure -- ZookeeperError: {}".format (e))
@@ -115,14 +114,9 @@ class ZKAdapter():
             self.logger.debug (("ZookeeperAdapter::add_node -- create znode: {}".format (znode)))
             self.zk.create (znode, value=value.encode('utf-8') , ephemeral=True, makepath=True)
         
-        except NodeExistsError as e:
-            self.logger.debug ("ZookeeperAdapter::add_node -- NodeExistsError: {}".format (e))
-            raise
-
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::add_node -- ZookeeperError: {}".format (e))
             raise
-
         except:
             self.logger.debug ("Unexpected error in add_node:", sys.exc_info()[0])
             raise
@@ -147,7 +141,6 @@ class ZKAdapter():
         except NodeExistsError as e:
             self.logger.debug ("ZookeeperAdapter::delete_node -- NodeExistsError: {}".format (e))
             raise
-
         except:
             self.logger.debug ("Unexpected error in delete_node:", sys.exc_info()[0])
             raise
@@ -170,9 +163,13 @@ class ZKAdapter():
                         return data
                 else:
                     return None
-        except:
+                
+        except ZookeeperError as e:
+            self.logger.debug ("ZookeeperAdapter::watch_node -- ZookeeperError: {}".format (e))
+            raise e 
+        except Exception as e:
             self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
-            raise
+            raise e 
         
 
     def leader_change_watcher (self, path, leader_path):
@@ -192,9 +189,12 @@ class ZKAdapter():
                         return leader
                 else:
                     return None
-        except:
+        except ZookeeperError as e:
+            self.logger.debug ("ZookeeperAdapter::watch_node -- ZookeeperError: {}".format (e))
+            raise e 
+        except Exception as e:
             self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
-            raise
+            raise e 
         
 
     def elect_leader (self, path):
@@ -219,10 +219,6 @@ class ZKAdapter():
             self.logger.debug ("ZookeeperAdapter::elect_leader -- ZookeeperError: {}".format (e))
             raise
 
-        except:
-            self.logger.debug ("Unexpected error in elect_leader:", sys.exc_info()[0])
-            raise
-
 
     def set_leader (self, path, value):
         """Set the leader"""
@@ -234,10 +230,6 @@ class ZKAdapter():
             self.logger.debug ("ZookeeperAdapter::set_leader -- ZookeeperError: {}".format (e))
             raise
 
-        except:
-            self.logger.debug ("Unexpected error in set_leader:", sys.exc_info()[0])
-            raise
-
 
     def get_leader (self, path):
         """Get the leader"""
@@ -247,17 +239,27 @@ class ZKAdapter():
                 return leader
             else:
                 return None
+
+        except ZookeeperError as e:
+            self.logger.debug ("ZookeeperAdapter::shutdown -- ZookeeperError: {}".format (e))
+            raise
         except:
             self.logger.debug ("Unexpected error in get_leader:", sys.exc_info()[0])
             raise
 
 
     def shutdown (self):    
-        self.logger.debug (("ZookeeperAdapter::shutdown -- now remove the znode {}".format (self.path)))
-        self.zk.delete (self.path, recursive=True)
-        
-        self.logger.debug  ("ZookeeperAdapter::shutdown -- disconnect and close")
-        self.zk.stop ()
-        self.zk.close ()
+        """Shutdown the zookeeper adapter"""
+        try:
+            self.logger.debug (("ZookeeperAdapter::shutdown -- now remove the znode {}".format (self.path)))
+            self.zk.delete (self.path, recursive=True)
 
-        self.logger.debug  ("ZookeeperAdapter::shutdown -- Bye Bye")
+            self.logger.debug  ("ZookeeperAdapter::shutdown -- disconnect and close")
+            self.zk.stop ()
+            self.zk.close ()
+
+            self.logger.debug  ("ZookeeperAdapter::shutdown -- Bye Bye")
+
+        except ZookeeperError as e:
+            self.logger.debug ("ZookeeperAdapter::shutdown -- ZookeeperError: {}".format (e))
+            raise

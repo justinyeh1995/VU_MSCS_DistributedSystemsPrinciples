@@ -275,6 +275,7 @@ class ExperimentGenerator ():
             "-n " + nested_dict["id"]  + " " + \
             "-j " + self.json_file + " " + \
             "-p " + str(nested_dict["port"]) + " " + \
+            "-pp " + str(nested_dict["port"]+1111) + " " + \
             "-P " + str(self.num_pub) + " " + \
             "-S " + str(self.num_sub) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
