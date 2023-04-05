@@ -103,7 +103,7 @@ class PublisherMW ():
       # Watch for the primary discovery service
       self.logger.debug ("PublisherMW::configure - watch for the primary discovery service")
       self.disc_leader = self.watch_primary_discovery_service() # a blocking call to wait for the primary discovery service to arrive
-      self.logger.debug ("PublisherMW::configure - primary discovery service is at %s" % leader_addr)
+      self.logger.debug ("PublisherMW::configure - primary discovery service is at %s" % self.disc_leader)
 
       # Now connect ourselves to the discovery service. Recall that the IP/port were
       # supplied in our argument parsing.
