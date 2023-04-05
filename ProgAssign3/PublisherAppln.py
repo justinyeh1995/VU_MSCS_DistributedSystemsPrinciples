@@ -67,17 +67,6 @@ from enum import Enum  # for an enumeration we are using to describe what state 
 ##################################
 class PublisherAppln ():
 
-  # these are the states through which our publisher appln object goes thru.
-  # We maintain the state so we know where we are in the lifecycle and then
-  # take decisions accordingly
-  class State (Enum):
-    INITIALIZE = 0,
-    CONFIGURE = 1,
-    REGISTER = 2,
-    ISREADY = 3,
-    DISSEMINATE = 4,
-    COMPLETED = 5
-
   ########################################
   # constructor
   ########################################
@@ -86,10 +75,8 @@ class PublisherAppln ():
     self.name = None # our name (some unique name)
     self.topiclist = None # the different topics that we publish on
     self.lookup = None # one of the diff ways we do lookup
-    self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
-    self.state = self.State.INITIALIZE # state that are we in
     self.num_topics = None # total num of topics we publish
 
   ########################################
@@ -113,7 +100,6 @@ class PublisherAppln ():
       config = configparser.ConfigParser ()
       config.read (args.config)
       self.lookup = config["Discovery"]["Strategy"]
-      self.dissemination = config["Dissemination"]["Strategy"]
     
       # Now get our topic list of interest
       self.logger.debug ("PublisherAppln::configure - selecting our topic list")
@@ -141,24 +127,17 @@ class PublisherAppln ():
 
       # dump our contents (debugging purposes)
       self.dump ()
-      # First ask our middleware to keep a handle to us to make upcalls.
-      # This is related to upcalls. By passing a pointer to ourselves, the
-      # middleware will keep track of it and any time something must
-      # be handled by the application level, invoke an upcall.
-      self.logger.debug ("PublisherAppln::driver - upcall handle")
-      #self.mw_obj.set_upcall_handle (self)
+
+      # the primary discovery service is found in the configure() method, bad design, gg
+      #-------------------------------------------------
+      if self.lookup == "ViaBroker":  
+        self.mw_obj.watch_primary_broker() # a blocking call to watch primary broker
+      #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("PublisherAppln::driver - register with the discovery service")
       result = self.mw_obj.register (self.name, self.topiclist)
       self.logger.debug ("PublisherAppln::driver - result of registration".format (result))
-
-      # Now keep checking with the discovery service if we are ready to go
-      self.logger.debug ("PublisherAppln::driver - check if are ready to go")
-      #print(self.mw_obj.is_ready ())
-      while (not self.mw_obj.is_ready ()):
-        time.sleep (5)  # sleep between calls so that we don't make excessive calls
-        self.logger.debug ("PublisherAppln::driver - check again if are ready to go")
 
       # Now disseminate
       ts = TopicSelector ()
@@ -172,6 +151,12 @@ class PublisherAppln ():
           self.mw_obj.disseminate (dissemination_data)
         # avoid transmission too frequently
         time.sleep (1)
+
+      # Now we are done. So, deregister ourselves
+      self.logger.debug ("PublisherAppln::driver - deregister ourselves")
+      self.mw_obj.deregister (self.name)
+      self.logger.debug ("PublisherAppln::driver - Bye")
+
         
     except Exception as e:
       raise e

@@ -78,7 +78,6 @@ class SubscriberAppln ():
       config = configparser.ConfigParser ()
       config.read (args.config)
       self.lookup = config["Discovery"]["Strategy"]
-      self.dissemination = config["Dissemination"]["Strategy"]
       self.num_topics = args.num_topics  # total num of topics we publish
 
       # Now get our topic list of interest
@@ -92,8 +91,6 @@ class SubscriberAppln ():
       self.mw_obj = SubscriberMW (self.logger, self.topiclist)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("SubscriberAppln::configure - configuration complete")
-
-      self.mw_obj.invoke_zk(args=args,logger=self.logger)
       
     except Exception as e:
       raise e
@@ -110,20 +107,10 @@ class SubscriberAppln ():
       # dump our contents (debugging purposes)
       self.dump ()
       
-      # Invoke zk adaptor 
-      self.logger.debug ("SubscriberAppln::driver - invoke zk adaptor")
-      
-      # Wait for the new-born discovery leader
-      while True:
-          if self.mw_obj.on_leader_change(type="discovery"):
-              break
-          time.sleep(1)
+      # the primary discovery service is found in the configure() method, bad design, gg
       #-------------------------------------------------
       if self.lookup == "ViaBroker":  
-        while True:
-          if self.mw_obj.on_leader_change(type="broker"):
-              break
-          time.sleep(1)
+        self.mw_obj.watch_primary_broker() # a blocking call to watch primary broker
       #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
@@ -147,6 +134,7 @@ class SubscriberAppln ():
           if self.lookup == "ViaBroker":  
               self.mw_obj.on_leader_change(type="broker")
           #-------------------------------------------------
+          self.mw_obj.lookup_topic (self.topiclist)
           # pass each topic to mw
           self.mw_obj.subscribe()
 

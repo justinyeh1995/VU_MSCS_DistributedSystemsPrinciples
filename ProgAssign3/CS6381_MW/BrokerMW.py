@@ -101,11 +101,6 @@ class BrokerMW ():
     except Exception as e:
       raise e
 
-  ######################
-  # temparory function
-  ######################
-  def setDissemination (self, dissemination):
-      self.dissemination = dissemination
 
   ########################################
   # register with the discovery service
@@ -170,52 +165,7 @@ class BrokerMW ():
     except Exception as e:
       raise e
 
-  ########################################
-  # check if the discovery service gives us a green signal to proceed
-  ########################################
-  def is_ready (self):
-    ''' register the appln with the discovery service '''
-
-    try:
-      self.logger.debug ("BrokerMW::is_ready")
-
-      # we do a similar kind of serialization as we did in the register
-      # message but much simpler, and then send the request to
-      # the discovery service
-    
-      # The following code shows serialization using the protobuf generated code.
-      
-      # first build a IsReady message
-      self.logger.debug ("BrokerMW::is_ready - populate the nested IsReady msg")
-      isready_msg = discovery_pb2.IsReadyReq ()  # allocate 
-      # actually, there is nothing inside that msg declaration.
-      self.logger.debug ("BrokerMW::is_ready - done populating nested IsReady msg")
-
-      # Build the outer layer Discovery Message
-      self.logger.debug ("BrokerMW::is_ready - build the outer DiscoveryReq message")
-      disc_req = discovery_pb2.DiscoveryReq ()
-      disc_req.msg_type = discovery_pb2.TYPE_ISREADY
-      # It was observed that we cannot directly assign the nested field here.
-      # A way around is to use the CopyFrom method as shown
-      disc_req.isready_req.CopyFrom (isready_msg)
-      self.logger.debug ("BrokerMW::is_ready - done building the outer message")
-      
-      # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
-      # a real string
-      buf2send = disc_req.SerializeToString ()
-      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
-
-      # now send this to our discovery service
-      self.logger.debug ("BrokerMW::is_ready - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
-      
-      # now go to our event loop to receive a response to this request
-      self.logger.debug ("BrokerMW::is_ready - now wait for reply")
-      return self.event_loop ()
-      
-    except Exception as e:
-      raise e
-
+ 
   ######################
   ## Look Up by Topic ##
   ######################

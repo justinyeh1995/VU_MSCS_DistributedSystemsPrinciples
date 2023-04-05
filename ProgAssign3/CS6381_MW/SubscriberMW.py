@@ -65,6 +65,10 @@ class SubscriberMW ():
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to sublish our topics
     self.topiclist = topiclist # list of topics we are interested in
+    self.zk_obj = None # handle to the ZK object
+    self.disc_leader = None # the leader of the discovery service
+    self.broker_leader = None # the leader of the broker service
+
 
   ########################################
   # configure/initialize
@@ -93,17 +97,28 @@ class SubscriberMW ():
       self.req = context.socket (zmq.REQ)
       self.sub = context.socket (zmq.SUB)
 
-      # register the REQ socket for incoming events
-      self.logger.debug ("SubscriberMW::configure - register the REQ socket for incoming replies")
-      self.poller.register (self.req, zmq.POLLIN)
-      
+      #------------------------------------------
+      # Now acquire the ZK object
+      self.logger.debug ("SubscriberMW::configure - obtain ZK object")
+      self.invoke_zk (args, self.logger)
+
+      #------------------------------------------
+      # Watch for the primary discovery service
+      self.logger.debug ("SubscriberMW::configure - watch for the primary discovery service")
+      self.disc_leader = self.watch_primary_discovery_service() # a blocking call to wait for the primary discovery service to arrive
+      self.logger.debug ("SubscriberMW::configure - primary discovery service is at %s" % leader_addr)
+
       # Now connect ourselves to the discovery service. Recall that the IP/port were
       # supplied in our argument parsing.
       self.logger.debug ("SubscriberMW::configure - connect to Discovery service")
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
-      connect_str = "tcp://" + args.discovery
+      connect_str = "tcp://" + self.disc_leader
       self.req.connect (connect_str)
+      
+      # register the REQ socket for incoming events
+      self.logger.debug ("SubscriberMW::configure - register the REQ socket for incoming replies")
+      self.poller.register (self.req, zmq.POLLIN)
       
     except Exception as e:
       raise e
@@ -120,8 +135,6 @@ class SubscriberMW ():
         self.zk_obj.start ()
         #-----------------------------------------------------------
         self.zk_obj.init_zkclient ()
-        #-----------------------------------------------------------
-        self.zk_obj.configure ()
       
       except Exception as e:
         raise e
@@ -152,6 +165,8 @@ class SubscriberMW ():
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
         self.req.connect(conn_string)
+        #--------------------------------------
+        self.poller.register (self.req, zmq.POLLIN)
       
       elif type == "broker":
         #--------------------------------------
@@ -178,6 +193,43 @@ class SubscriberMW ():
       raise e
     
 
+  ########################################
+  # watch for the primary discovery service
+  ########################################
+  def watch_primary_discovery_service (self):
+    try:
+      #--------------------------------------
+      while True:
+        leader_addr = self.on_leader_change("discovery")
+        if leader_addr is not None:
+          return leader_addr
+        time.sleep(1)
+      #--------------------------------------
+
+    except Exception as e:
+      raise e 
+    
+
+  ########################################
+  # watch for the primary broker
+  ########################################
+  def watch_primary_broker (self):
+    try:
+      #--------------------------------------
+      while True:
+        leader_addr = self.on_leader_change("broker")
+        if leader_addr is not None:
+          return leader_addr
+        time.sleep(1)
+      #--------------------------------------
+
+    except Exception as e:
+      raise e 
+
+
+  ########################################
+  # on leader change
+  ########################################
   def on_leader_change (self, type):
     """subscribe on leader change"""
     try:
@@ -187,15 +239,10 @@ class SubscriberMW ():
       elif type == "broker":
         path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
       #-------------------------------
-      decision = self.zk_obj.leader_watcher (path, leader_path)
+      leader = self.zk_obj.leader_watcher (path, leader_path)
       #-------------------------------
-      if decision is not None:
-        self.update_leader (type, decision)
-        # reconnection
-        self.reconnect (type, path)
-        #-------------------------------
-      return decision
-      #-------------------------------
+      return leader
+
     except ZookeeperError as e:
         self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
         raise

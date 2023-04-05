@@ -50,10 +50,7 @@ class DiscoveryMW ():
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
     self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
-    self.pubCnt = 0
-    self.subCnt = 0
-    self.brokerCnt = 1
-    self.zk_adapter = None
+    self.zk_obj = None
 
 
   ########################################
@@ -91,23 +88,87 @@ class DiscoveryMW ():
       bind_string = "tcp://*:" + self.pubPort
       self.pub.bind (bind_string)
 
+      #------------------------------------------
+      # Now acquire the ZK object
+      self.logger.debug ("DiscoveryMW::configure - obtain ZK object")
+      self.invoke_zk (args, self.logger)
+
+      time.sleep(1)
+      #------------------------------------------
+      # Now acquire the SUB socket
+      self.logger.debug ("DiscoveryMW::configure - obtain SUB socket")
       self.sub = context.socket (zmq.SUB)
+      self.configure_SUB()
 
       # Now create a poller object
       self.logger.debug ("DiscoveryMW::configure - create poller object")
       self.poller = zmq.Poller ()
       self.poller.register (self.rep, zmq.POLLIN) # register the REP socket for incoming requests
+      self.poller.register (self.sub, zmq.POLLIN) # register the SUB socket for incoming requests
 
-      # set the number of machines participating
-      self.pubCnt = args.P
-      self.subCnt = args.S
-
-      self.invoke_zk (args, self.logger)
 
     except Exception as e:
       raise e
 
 
+  ################
+  # broadcasr the change of leader
+  ################
+  def broadcast_to_discovery_nodes(self, info):
+    self.pub.send_multipart([b" ", b"discovery", info])
+
+
+  ################
+  # Configure sub socket
+  ################
+  def configure_SUB(self):
+    self.discovery_nodes = self.get_discovery_nodes()
+    self.connect_discovery_nodes(self.discovery_nodes)
+
+
+  ###########################################
+  # get other discovery nodes in the cluster
+  ###########################################
+  def get_discovery_nodes(self):
+    @self.zk_obj.zkclient.ChildrenWatch(self.zk_obj.discoveryPath)
+    def watch_children(children):
+      self.logger.debug("DiscoveryMW::get_discovery_nodes - children: {}".format(children))
+      return children
+
+
+  ###################################################
+  # subscribe to other discovery nodes in the cluster
+  ###################################################
+  def connect_discovery_nodes(self, discovery_nodes):
+    for node in discovery_nodes:
+      if node != self.addr + ":" + str(self.port):
+        self.logger.debug("DiscoveryMW::connect_discovery_nodes - node: {}".format(node))
+        self.sub.connect("tcp://" + node)
+        self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
+    self.logger.debug ("DiscoveryMW::connect_discovery_nodes - subscribe to discovery nodes")
+
+
+  ########################################
+  # start the kazoo client
+  ########################################
+  def invoke_zk (self, args, logger):
+      """The actual logic of the driver program """
+      try:
+          # start the zookeeper adapter in a separate thread
+          self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
+          #-----------------------------------------------------------
+          self.zk_obj.start () # start the Kazoo client
+          #-----------------------------------------------------------
+          self.zk_obj.init_zkclient () # connect to the Zookeeper server
+          #-----------------------------------------------------------
+          self.zk_obj.create_node () # create the necessary znode of this discovery node
+          #-----------------------------------------------------------
+
+      except ZookeeperError as e:
+          self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+          raise
+      
+      
   ################
   # update_leader
   ################
@@ -118,58 +179,9 @@ class DiscoveryMW ():
       self.broker_leader = leader
 
 
-  ################
-  # broadcasr the change of leader
-  ################
-  def broadcast_to_discovery_nodes(self, info):
-    self.pub.send_multipart([b"", b"discovery", info])
-
-
-  ################
-  # get other discovery nodes in the cluster
-  ################
-  def get_discovery_nodes(self):
-    @self.zk_obj.zkclient.ChildrenWatch(self.zk_obj.discPath)
-    def watch_children(children):
-      self.logger.debug("DiscoveryMW::get_discovery_nodes - children: {}".format(children))
-      self.discovery_nodes = children
-      self.logger.debug("DiscoveryMW::get_discovery_nodes - discovery_nodes: {}".format(self.discovery_nodes))
-      return children
-
-
-  ################
-  # subscribe to other discovery nodes in the cluster
-  ################
-  def connect_discovery_nodes(self):
-    for node in self.discovery_nodes:
-      if node != self.addr + ":" + str(self.port):
-        self.logger.debug("DiscoveryMW::connect_discovery_nodes - node: {}".format(node))
-        self.sub.connect("tcp://" + node)
-        self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
-    self.logger.debug ("DiscoveryMW::connect_discovery_nodes - subscribe to discovery nodes")
-    self.poller.register (self.sub, zmq.POLLIN)
-
-
-  def invoke_zk (self, args, logger):
-      """The actual logic of the driver program """
-
-      try:
-
-          # start the zookeeper adapter in a separate thread
-          self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
-          #-----------------------------------------------------------
-          self.zk_obj.start ()
-          #-----------------------------------------------------------
-          self.zk_obj.init_zkclient ()
-          #-----------------------------------------------------------
-          self.zk_obj.configure ()
-          #-----------------------------------------------------------
-
-      except ZookeeperError as e:
-          self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
-          raise
-      
-
+  ########################################
+  # watch leader change
+  ########################################
   def on_leader_change(self, type):
     """subscribe on leader change"""
     try:
@@ -181,7 +193,6 @@ class DiscoveryMW ():
       decision = self.zk_obj.leader_change_watcher (path, leader_path)
       if decision is not None:
         self.update_leader (type, decision)
-        #self.broadcast_leader(type, decision)
 
       return decision 
     
@@ -269,10 +280,25 @@ class DiscoveryMW ():
                                 "topiclist": topiclist}
         
         self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
+        self.zk_obj.register_node (self.registry[uid])
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
 
+    except Exception as e:
+      raise e
+
+
+  ########################################
+  # deregister info from storage
+  ########################################
+  def deregister (self, name):
+    '''handle deregistrations'''
+    try:
+      self.logger.debug ("DiscoveryMW::Providing Deregistration service")
+      self.logger.debug ("DiscoveryMW::Deregistering {}".format(name))
+      del self.registry[name]
+      self.logger.debug ("DiscoveryMW::Deregistration info")
     except Exception as e:
       raise e
 
@@ -321,58 +347,8 @@ class DiscoveryMW ():
       raise e
 
 
-  ########################################
-  # is_ready response: ready
-  ########################################
-  def gen_ready_resp (self):
-    ''' register the appln with the discovery service '''
-
-    try:
-      self.logger.debug ("DiscoveryMW::checking ready status")
-
-      # we do a similar kind of serialization as we did in the register
-      # message but much simpler, and then send the request to
-      # the discovery service
-    
-      # The following code shows serialization using the protobuf generated code.
-      
-      # first build a IsReady message
-      self.logger.debug ("DiscoveryMW::is_ready - populate the nested IsReady msg")
-      isready_msg = discovery_pb2.IsReadyResp ()  # allocate 
-    
-      self.logger.debug (f"DiscoveryMW::is_ready - Dissemination - {self.dissemination}")
-      self.logger.debug (f"DiscoveryMW::is_ready - Dissemination - {self.dissemination == 'Direct'}")
-      if ((self.pubCnt <= 0 and self.subCnt <= 0 and self.dissemination == "Direct") or
-         (self.pubCnt <= 0 and self.subCnt <= 0 and self.brokerCnt <= 0 and self.dissemination == "ViaBroker")):
-        isready_msg.status = discovery_pb2.STATUS_SUCCESS  # this will change to an enum later on
-      else:
-        isready_msg.status = discovery_pb2.STATUS_UNKNOWN#STATUS_FAILURE # this will change to an enum later on
-
-      self.logger.debug (f"DiscoveryMW::is_ready - Status - {isready_msg.status}")
-      # Build the outer layer Discovery Message
-      self.logger.debug ("DiscoveryMW::is_ready - build the outer DiscoveryReq message")
-      disc_resp = discovery_pb2.DiscoveryResp ()
-      disc_resp.msg_type = discovery_pb2.TYPE_ISREADY
-      # It was observed that we cannot directly assign the nested field here.
-      # A way around is to use the CopyFrom method as shown
-      disc_resp.isready_resp.CopyFrom (isready_msg)
-      self.logger.debug ("DiscoveryMW::is_ready - done building the outer message")
-      
-      # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
-      # a real string
-      buf2send = disc_resp.SerializeToString ()
-      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
-
-      # now send this to our discovery service
-      #self.logger.debug ("DiscoveryMW::is_ready - send stringified buffer to Discovery service")
-      #self.rep.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
-      return buf2send
-      
-    except Exception as e:
-      raise e
-
   ################
-  ##
+  ## lookup
   ################
   def gen_lookup_resp(self, request):
     try:
@@ -459,7 +435,6 @@ class DiscoveryMW ():
         if self.rep in events:
           # the only socket that should be enabled, if at all, is our REQ socket.
           bytesMsg = self.rep.recv() 
-          print(bytesMsg)
           resp = self.handle_request (bytesMsg)
           # now send this to our discovery service
           self.logger.debug ("DiscoveryMW:: send stringified buffer back to publishers/subscribers")
@@ -502,6 +477,12 @@ class DiscoveryMW ():
         self.register(request)
         # this is a response to register message
         resp = self.gen_register_resp()
+        return resp
+      elif (request.msg_type == discovery_pb2.TYPE_DEREGISTER):
+        # deregistrations
+        self.deregister(request)
+        # this is a response to register message
+        resp = self.gen_register_resp() # same as register
         return resp
       elif (request.msg_type == discovery_pb2.TYPE_ISREADY):
         # this is a response to is ready request

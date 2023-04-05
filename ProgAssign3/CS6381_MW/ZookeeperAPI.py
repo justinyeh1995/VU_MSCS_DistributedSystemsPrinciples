@@ -17,25 +17,25 @@ class ZKAdapter():
     def __init__ (self, args, logger, callback=None):
         """constructor"""
         self.logger = logger
-        self.zkIPAddr = 'localhost'  # ZK server IP address
+        self.zkIPAddr = "10.0.0.1"  # ZK server IP address
         self.zkPort = 2181 # ZK server port num
         self.zk = None  # session handle to the server
         self.addr = args.addr
         self.port = args.port
         self.name = args.name
         self.conn_string = self.addr + ":" + str (self.port)
+        #---------------------------------------------------
         self.root_path = "/home/"
         self.discoveryPath = self.root_path + "/discovery" # refers to the znode path being manipulated
         self.brokerPath = self.root_path + "/broker"  # refers to the znode path being manipulated
-        self.pubPath = self.root_path + "/pub"  # refers to the znode path being manipulated
-        self.subPath = self.root_path + "/sub"  # refers to the znode path being manipulated
-        self.path = self.discoveryPath + "/" + self.name
+        self.path = self.discoveryPath + "/" + self.name # refers to the znode path where this node is registered
+        #---------------------------------------------------
         self.leader = False
+        #---------------------------------------------------
         self.leader_path = self.root_path + "/leader" 
         self.discLeaderPath = self.leader_path + "/discovery"
         self.brokerLeaderPath = self.leader_path + "/broker"
-        self.callback = callback
-        self.barrier = False
+
 
     # Debugging: Dump the contents
 
@@ -79,20 +79,19 @@ class ZKAdapter():
             raise
 
 
-    def configure (self):
+    def create_node (self):
         """Configure the client driver program"""
         try:
             # next, create a znode for the discovery service with initial value of its address
             self.logger.debug  ("ZookeeperAdapter::run_driver -- create a znode for discovery service")
             self.zk.ensure_path (self.root_path)
             self.zk.ensure_path (self.discoveryPath)
-            self.zk.ensure_path (self.pubPath)
-            self.zk.ensure_path (self.subPath)
             self.zk.ensure_path (self.brokerPath)
+            #-------------------------------------------
             self.zk.ensure_path (self.leader_path)
             self.zk.ensure_path (self.discLeaderPath)
             self.zk.ensure_path (self.brokerLeaderPath)
-
+            #-------------------------------------------
             self.zk.create (self.path, value=self.conn_string.encode('utf-8'), makepath=True)
         
         except ZookeeperError as e:

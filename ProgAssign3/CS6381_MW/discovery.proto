@@ -27,6 +27,7 @@ enum MsgTypes {
      TYPE_ISREADY = 2;    // needed by publisher to know if it can proceed
      TYPE_LOOKUP_PUB_BY_TOPIC = 3;  // needed by a subscriber
      TYPE_LOOKUP_ALL_PUBS = 4;   // probably needed by broker
+     TYPE_DEREGISTER = 5;  // used by pub, sub and broker
      // anything more
 }
 
@@ -36,7 +37,7 @@ message RegistrantInfo {
     string id = 1;  // name of the entity
     optional string addr = 2; // IP address (only for publisher)
     optional uint32 port = 3; // port number (only for publisher)
-		optional double timestamp = 4;
+	optional double timestamp = 4;
 }
 
 // Likewise, instead of just comma separated list of topics, maybe a better way to send the topic list
@@ -46,7 +47,13 @@ message RegisterReq
 {
     Role role = 1;   // enum indicating what role we are playing
     RegistrantInfo info = 2; // info about the registrant
-    repeated string topiclist = 3; // an array of topic names (published or subscribed to)
+    repeated string topiclist = 3; // an array of topic names (published or subscribed to)}
+} 
+
+message DeregisterReq
+{
+    Role role = 1;   // enum indicating what role we are playing
+    RegistrantInfo info = 2; // info about the registrant
 }
 
 // Response to registration can be a success or a failure accompanied by a reason.
