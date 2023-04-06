@@ -56,7 +56,7 @@ class ZKAdapter():
 
             # instantiate a zookeeper client object
             # right now only one host; it could be the ensemble
-            hosts = self.zkIPAddr + str (":") + str (self.zkPort)
+            hosts = self.zkIPAddr + ":" + str (self.zkPort)
             self.logger.debug (("ZookeeperAdapter::configure -- instantiate zk obj: hosts = {}".format(hosts)))
             self.zk = KazooClient (hosts)
             self.logger.debug (("ZookeeperAdapter::configure -- state = {}".format (self.zk.state)))
@@ -94,7 +94,12 @@ class ZKAdapter():
             self.zk.ensure_path (self.discLeaderPath)
             self.zk.ensure_path (self.brokerLeaderPath)
             #-------------------------------------------
-            self.zk.create (self.path, value=value.encode('utf-8'), makepath=True)
+            if not self.zk.exists (self.path):
+                self.logger.debug (("ZookeeperAdapter::configure -- create znode: {}".format (self.path)))
+                self.zk.create (self.path, value=value.encode('utf-8'), makepath=True)
+            else:
+                self.logger.debug (("ZookeeperAdapter::configure -- znode already exists: {}".format (self.path)))
+                self.zk.set (self.path, value=value.encode('utf-8'))
         
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::configure -- ZookeeperError: {}".format (e))
@@ -125,6 +130,7 @@ class ZKAdapter():
             self.logger.debug ("ZookeeperAdapter::add_node -- Exception: {}".format (e))
             traceback.print_exc()
             raise
+
 
     def deregister_node (self, info):
         """Delete a znode, given the information"""	
@@ -162,9 +168,10 @@ class ZKAdapter():
                 if event is not None:
                     if event.type == "CREATE" or event.type == "CHANGED":
                         self.logger.debug ("ZookeeperAdapter::watch -- primary entity created/changed")
-                        data, stat = self.zk.get(leader_path) 
-                        self.logger.debug ("ZookeeperAdapter::watch -- set leader to {}".format (data))
-                        return data
+                        zk_resp = self.zk.get(leader_path) 
+                        leader_addr = zk_resp[0].decode('utf-8')
+                        self.logger.debug ("ZookeeperAdapter::watch -- set leader to {}".format (leader_addr))
+                        return leader_addr
                 else:
                     return None
                 
@@ -192,9 +199,8 @@ class ZKAdapter():
                         leader = self.elect_leader (path)
                         self.set_leader (leader_path, leader)
                         self.logger.debug ("ZookeeperAdapter::watch -- set leader to {}".format (leader))
-                        return leader
-                else:
-                    return None
+            return self.get_leader (leader_path) 
+        
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::watch_node -- ZookeeperError: {}".format (e))
             traceback.print_exc()

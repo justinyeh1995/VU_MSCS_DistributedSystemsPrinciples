@@ -101,6 +101,8 @@ class DiscoveryAppln ():
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("DiscoveryAppln::driver - discovery service")
+
+      self.mw_obj.on_leader_change ("discovery") 
       
       self.mw_obj.event_loop()
         

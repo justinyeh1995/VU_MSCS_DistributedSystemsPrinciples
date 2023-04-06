@@ -236,7 +236,7 @@ class PublisherMW ():
       elif type == "broker":
         path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
       #-------------------------------
-      leader = self.zk_obj.leader_watcher (path, leader_path)
+      leader = self.zk_obj.leader_watcher (leader_path)
       #-------------------------------
       return leader
 

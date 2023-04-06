@@ -50,6 +50,7 @@ class DiscoveryMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
+    self.name = None # name of the service
     self.pub_port = None # port num where we are going to publish our topics
     self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
     self.zk_obj = None
@@ -68,6 +69,7 @@ class DiscoveryMW ():
       # First retrieve our advertised IP addr and the publication port num
       self.port = args.port
       self.addr = args.addr
+      self.name = args.name
       self.pub_port = args.pub_port
 
       # Next get the ZMQ context
@@ -108,10 +110,6 @@ class DiscoveryMW ():
       self.poller.register (self.rep, zmq.POLLIN) # register the REP socket for incoming requests
       self.poller.register (self.sub, zmq.POLLIN) # register the SUB socket for incoming requests
 
-      # Register the discovery node
-      self.zk_obj.register_discovery_node(self.addr + ":" + str(self.port))
-
-
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -133,7 +131,19 @@ class DiscoveryMW ():
   ################
   def configure_SUB(self):
     try:
-      self.discovery_nodes = self.get_discovery_nodes()
+      count = 0
+      while True:
+        self.discovery_nodes = self.get_discovery_nodes()
+        count += 1
+        if self.discovery_nodes:
+          break
+        #------------------------------------------
+        if count > 10 and count % 10 == 0:
+          self.logger.debug("DiscoveryMW::configure_SUB - discovery_nodes is empty")
+        #------------------------------------------
+        time.sleep(1)
+      #------------------------------------------
+      self.logger.debug("DiscoveryMW::configure_SUB - discovery_nodes: {}".format(self.discovery_nodes))
       self.connect_discovery_nodes(self.discovery_nodes)
     except Exception as e:
       traceback.print_exc()
@@ -144,10 +154,20 @@ class DiscoveryMW ():
   ###########################################
   def get_discovery_nodes(self):
     try:
-      @self.zk_obj.zkclient.ChildrenWatch(self.zk_obj.discoveryPath)
+      @self.zk_obj.zk.ChildrenWatch(self.zk_obj.discoveryPath)
       def watch_children(children):
         self.logger.debug("DiscoveryMW::get_discovery_nodes - children: {}".format(children))
-        return children
+        #------------------------------------------
+        addresses = []
+        for child in children:
+          if child == self.name:
+            continue
+          zk_resp = self.zk_obj.zk.get(self.zk_obj.discoveryPath + "/" + child)
+          addr = zk_resp[0].decode("utf-8")
+          self.logger.debug("DiscoveryMW::get_discovery_nodes - addr: {}".format(addr))
+          addresses.append(addr)
+        self.discovery_nodes = addresses
+      return self.discovery_nodes 
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -159,7 +179,7 @@ class DiscoveryMW ():
   def connect_discovery_nodes(self, discovery_nodes):
     try:
       for node in discovery_nodes:
-        if node != self.addr + ":" + str(self.port):
+        if node and node != self.addr + ":" + str(self.port):
           self.logger.debug("DiscoveryMW::connect_discovery_nodes - node: {}".format(node))
           self.sub.connect("tcp://" + node)
           self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
@@ -182,7 +202,7 @@ class DiscoveryMW ():
           #-----------------------------------------------------------
           self.zk_obj.start () # start the Kazoo client
           #-----------------------------------------------------------
-          self.zk_obj.create_node () # create the necessary znode of this discovery node
+          self.zk_obj.register_discovery_node (self.addr + ":" + str (self.port)) # create the necessary znode of this discovery node
           #-----------------------------------------------------------
 
       except ZookeeperError as e:
@@ -213,10 +233,11 @@ class DiscoveryMW ():
         path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
       
       decision = self.zk_obj.leader_change_watcher (path, leader_path)
-      if decision is not None:
-        self.update_leader (type, decision)
+      leader = decision[0].decode("utf-8")
+      self.logger.debug("DiscoveryMW::on_leader_change - leader: {}".format(leader))
+      self.update_leader (type, leader)
 
-      return decision 
+      return leader
     
     except ZookeeperError as e:
         self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
