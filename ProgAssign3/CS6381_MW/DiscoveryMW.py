@@ -306,7 +306,7 @@ class DiscoveryMW ():
                                 "topiclist": topiclist}
         #-----------------------------------------------------------
         info = self.registry[uid]
-        topiclist2json = json.dumps(topiclist)
+        topiclist2json = json.dumps([topic for topic in info["topiclist"]])
         info["topiclist"] = topiclist2json
         buf2send = json.dumps(info).encode('utf-8')
         self.broadcast_to_discovery_nodes (buf2send)
@@ -338,7 +338,7 @@ class DiscoveryMW ():
                                 "topiclist": topiclist}
         #-----------------------------------------------------------
         info = self.registry[uid]
-        topiclist2json = json.dumps(topiclist)
+        topiclist2json = json.dumps([topic for topic in info["topiclist"]])
         info["topiclist"] = topiclist2json
         buf2send = json.dumps(info).encode('utf-8')
         self.broadcast_to_discovery_nodes (buf2send)
