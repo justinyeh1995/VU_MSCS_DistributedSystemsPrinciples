@@ -267,7 +267,7 @@ class DiscoveryMW ():
           traceback.print_exc()
           raise e
     
-    
+
   #------------------------------------------------------------------------------------- 
 
   ######################
@@ -304,8 +304,12 @@ class DiscoveryMW ():
                                 "port": port,  
                                 "name": uid, 
                                 "topiclist": topiclist}
-
-        self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
+        #-----------------------------------------------------------
+        info = self.registry[uid]
+        topiclist2json = json.dumps(topiclist)
+        info["topiclist"] = topiclist2json
+        buf2send = json.dumps(info).encode('utf-8')
+        self.broadcast_to_discovery_nodes (buf2send)
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
         
@@ -315,7 +319,7 @@ class DiscoveryMW ():
                                 "addr": addr,
                                 "port": port,
                                 "name": uid}
-
+        #-----------------------------------------------------------
         self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
 
       elif role == discovery_pb2.ROLE_BOTH:
@@ -332,8 +336,13 @@ class DiscoveryMW ():
                                 "port": port,  
                                 "name": uid, 
                                 "topiclist": topiclist}
-        
-        self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
+        #-----------------------------------------------------------
+        info = self.registry[uid]
+        topiclist2json = json.dumps(topiclist)
+        info["topiclist"] = topiclist2json
+        buf2send = json.dumps(info).encode('utf-8')
+        self.broadcast_to_discovery_nodes (buf2send)
+        #-----------------------------------------------------------
         self.zk_adapter.register_node (self.registry[uid]) # register broker node in zookeeper
 
       self.logger.debug ("DiscoveryMW::Registration info")
@@ -504,8 +513,10 @@ class DiscoveryMW ():
           self.logger.debug ("DiscoveryMW::event_loop - perform the merge")
           #----------------------------------------------------------
           incoming_msg = self.sub.recv_multipart()
+          self.logger.debug ("DiscoveryMW::event_loop - incoming_msg: {}".format(incoming_msg))
           register_msg = incoming_msg[-1]
           register_msg = json.loads(register_msg.decode("utf-8"))
+          register_msg["topiclist"] = json.loads(register_msg["topiclist"])
           #----------------------------------------------------------
           uid = register_msg["name"]
           if uid not in self.registry:
