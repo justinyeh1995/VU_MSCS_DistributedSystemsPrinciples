@@ -129,9 +129,9 @@ class PublisherMW ():
         # start the zookeeper adapter in a separate thread
         self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
         #-----------------------------------------------------------
-        self.zk_obj.start ()
-        #-----------------------------------------------------------
         self.zk_obj.init_zkclient ()
+        #-----------------------------------------------------------
+        self.zk_obj.start ()
       
       except Exception as e:
         raise e

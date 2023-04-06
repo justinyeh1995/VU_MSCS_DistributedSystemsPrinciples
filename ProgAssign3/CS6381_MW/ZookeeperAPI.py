@@ -1,4 +1,5 @@
 import sys
+import traceback 
 from kazoo.client import KazooClient
 from kazoo.client import KazooState
 from kazoo.exceptions import NoNodeError
@@ -23,11 +24,11 @@ class ZKAdapter():
         self.addr = args.addr
         self.port = args.port
         self.name = args.name
-        self.conn_string = self.addr + ":" + str (self.port)
         #---------------------------------------------------
         self.root_path = "/home"
         self.discoveryPath = self.root_path + "/discovery" # refers to the znode path being manipulated
         self.brokerPath = self.root_path + "/broker"  # refers to the znode path being manipulated
+        #---------------------------------------------------
         self.path = self.discoveryPath + "/" + self.name # refers to the znode path where this node is registered
         #---------------------------------------------------
         self.leader = False
@@ -62,6 +63,7 @@ class ZKAdapter():
             
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::init_zkclient -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise
             
 
@@ -75,6 +77,7 @@ class ZKAdapter():
 
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::start -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise
 
 
@@ -95,6 +98,7 @@ class ZKAdapter():
         
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::configure -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise
 
 
@@ -117,10 +121,10 @@ class ZKAdapter():
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::add_node -- ZookeeperError: {}".format (e))
             raise
-        except:
-            self.logger.debug ("Unexpected error in add_node:", sys.exc_info()[0])
+        except Exception as e:
+            self.logger.debug ("ZookeeperAdapter::add_node -- Exception: {}".format (e))
+            traceback.print_exc()
             raise
-
 
     def deregister_node (self, info):
         """Delete a znode, given the information"""	
@@ -166,9 +170,11 @@ class ZKAdapter():
                 
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::watch_node -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise e 
         except Exception as e:
             self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+            traceback.print_exc()
             raise e 
         
 
@@ -191,9 +197,11 @@ class ZKAdapter():
                     return None
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::watch_node -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise e 
         except Exception as e:
             self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+            traceback.print_exc()
             raise e 
         
 
@@ -217,8 +225,12 @@ class ZKAdapter():
         
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::elect_leader -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise
-
+        except:
+            self.logger.debug ("Unexpected error in elect_leader:", sys.exc_info()[0])
+            traceback.print_exc()
+            raise
 
     def set_leader (self, path, value):
         """Set the leader"""
@@ -228,6 +240,7 @@ class ZKAdapter():
         
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::set_leader -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise
 
 
@@ -242,6 +255,7 @@ class ZKAdapter():
 
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::shutdown -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise
         except:
             self.logger.debug ("Unexpected error in get_leader:", sys.exc_info()[0])
@@ -262,4 +276,5 @@ class ZKAdapter():
 
         except ZookeeperError as e:
             self.logger.debug ("ZookeeperAdapter::shutdown -- ZookeeperError: {}".format (e))
+            traceback.print_exc()
             raise

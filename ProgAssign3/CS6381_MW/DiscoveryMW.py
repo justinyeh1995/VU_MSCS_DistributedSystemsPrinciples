@@ -27,6 +27,7 @@ import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
 import collections
 import json
+import traceback
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -49,6 +50,7 @@ class DiscoveryMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
+    self.pub_port = None # port num where we are going to publish our topics
     self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
     self.zk_obj = None
 
@@ -111,6 +113,7 @@ class DiscoveryMW ():
 
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -118,38 +121,53 @@ class DiscoveryMW ():
   # broadcasr the change of leader
   ################
   def broadcast_to_discovery_nodes(self, info):
-    self.pub.send_multipart([b" ", b"discovery", info])
+    try:
+      self.pub.send_multipart([b" ", b"discovery", info])
+    except Exception as e:
+      traceback.print_exc()
+      raise e
 
 
   ################
   # Configure sub socket
   ################
   def configure_SUB(self):
-    self.discovery_nodes = self.get_discovery_nodes()
-    self.connect_discovery_nodes(self.discovery_nodes)
-
+    try:
+      self.discovery_nodes = self.get_discovery_nodes()
+      self.connect_discovery_nodes(self.discovery_nodes)
+    except Exception as e:
+      traceback.print_exc()
+      raise e
 
   ###########################################
   # get other discovery nodes in the cluster
   ###########################################
   def get_discovery_nodes(self):
-    @self.zk_obj.zkclient.ChildrenWatch(self.zk_obj.discoveryPath)
-    def watch_children(children):
-      self.logger.debug("DiscoveryMW::get_discovery_nodes - children: {}".format(children))
-      return children
+    try:
+      @self.zk_obj.zkclient.ChildrenWatch(self.zk_obj.discoveryPath)
+      def watch_children(children):
+        self.logger.debug("DiscoveryMW::get_discovery_nodes - children: {}".format(children))
+        return children
+    except Exception as e:
+      traceback.print_exc()
+      raise e
 
 
   ###################################################
   # subscribe to other discovery nodes in the cluster
   ###################################################
   def connect_discovery_nodes(self, discovery_nodes):
-    for node in discovery_nodes:
-      if node != self.addr + ":" + str(self.port):
-        self.logger.debug("DiscoveryMW::connect_discovery_nodes - node: {}".format(node))
-        self.sub.connect("tcp://" + node)
-        self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
-    self.logger.debug ("DiscoveryMW::connect_discovery_nodes - subscribe to discovery nodes")
-
+    try:
+      for node in discovery_nodes:
+        if node != self.addr + ":" + str(self.port):
+          self.logger.debug("DiscoveryMW::connect_discovery_nodes - node: {}".format(node))
+          self.sub.connect("tcp://" + node)
+          self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
+      self.logger.debug ("DiscoveryMW::connect_discovery_nodes - subscribe to discovery nodes")
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+    
 
   ########################################
   # start the kazoo client
@@ -160,15 +178,16 @@ class DiscoveryMW ():
           # start the zookeeper adapter in a separate thread
           self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
           #-----------------------------------------------------------
-          self.zk_obj.start () # start the Kazoo client
-          #-----------------------------------------------------------
           self.zk_obj.init_zkclient () # connect to the Zookeeper server
+          #-----------------------------------------------------------
+          self.zk_obj.start () # start the Kazoo client
           #-----------------------------------------------------------
           self.zk_obj.create_node () # create the necessary znode of this discovery node
           #-----------------------------------------------------------
 
       except ZookeeperError as e:
           self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+          traceback.print_exc()
           raise
       
       
@@ -201,9 +220,11 @@ class DiscoveryMW ():
     
     except ZookeeperError as e:
         self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
+        traceback.print_exc()
         raise
     except Exception as e:
         self.logger.debug  ("ZookeeperAdapter::run_driver -- Exception: {}".format (e))
+        traceback.print_exc()
         raise
     except:
         self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
@@ -281,6 +302,7 @@ class DiscoveryMW ():
       print(self.registry)
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -295,6 +317,7 @@ class DiscoveryMW ():
       del self.registry[name]
       self.logger.debug ("DiscoveryMW::Deregistration info")
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -339,6 +362,7 @@ class DiscoveryMW ():
       return buf2send
     
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -414,6 +438,7 @@ class DiscoveryMW ():
       return buf2send
       
     except Exception as e:
+      traceback.print_exc()
       raise e
   
   #################################################################
@@ -451,6 +476,7 @@ class DiscoveryMW ():
           self.logger.debug ("DiscoveryMW::event_loop - now the registry looks like: {}".format(self.registry))
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -490,6 +516,7 @@ class DiscoveryMW ():
         raise Exception ("Unrecognized request message")
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
