@@ -102,8 +102,18 @@ class DiscoveryAppln ():
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("DiscoveryAppln::driver - discovery service")
 
-      self.mw_obj.on_leader_change ("discovery") 
-      
+      # Inital election for discovery leader
+      self.mw_obj.first_election(self.mw_obj.zk_adapter.discoveryPath, self.mw_obj.zk_adapter.discoveryLeaderPath)
+
+      # register leader change handler which has a callback function to handle leader change (async)
+      self.mw_obj.on_leader_change(type="discovery")
+
+      # if we are using the via broker approach, then we need to elect a primary broker & register a handler
+      if self.lookup == "ViaBroker":
+        self.mw_obj.first_election(self.mw_obj.zk_adapter.brokerPath, self.mw_obj.zk_adapter.brokerLeaderPath)
+        self.mw_obj.on_leader_change(type="broker")
+
+      # handle socket events in an infinite loop
       self.mw_obj.event_loop()
         
     except Exception as e:

@@ -75,6 +75,7 @@ class PublisherAppln ():
     self.name = None # our name (some unique name)
     self.topiclist = None # the different topics that we publish on
     self.lookup = None # one of the diff ways we do lookup
+    self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
     self.num_topics = None # total num of topics we publish
@@ -99,7 +100,7 @@ class PublisherAppln ():
       self.logger.debug ("PublisherAppln::configure - parsing config.ini")
       config = configparser.ConfigParser ()
       config.read (args.config)
-      self.lookup = config["Discovery"]["Strategy"]
+      self.dissemination = config["Discovery"]["Strategy"]
     
       # Now get our topic list of interest
       self.logger.debug ("PublisherAppln::configure - selecting our topic list")
@@ -130,8 +131,9 @@ class PublisherAppln ():
 
       # the primary discovery service is found in the configure() method, bad design, gg
       #-------------------------------------------------
-      if self.lookup == "ViaBroker":  
-        self.mw_obj.watch_primary_broker() # a blocking call to watch primary broker
+      if self.dissemination == "ViaBroker":  
+        self.mw_obj.first_watch(type="broker")
+        self.mw_obj.leader_watcher(type="broker")
       #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
@@ -173,8 +175,7 @@ class PublisherAppln ():
       self.logger.debug ("PublisherAppln::dump")
       self.logger.debug ("------------------------------")
       self.logger.debug ("     Name: {}".format (self.name))
-      self.logger.debug ("     Lookup: {}".format (self.lookup))
-      self.logger.debug ("     Dissemination: {}".format (self.dissemination))
+      self.logger.debug ("     Dissemination: {}".format (self.lookup))
       self.logger.debug ("     TopicList: {}".format (self.topiclist))
       self.logger.debug ("     Iterations: {}".format (self.iters))
       self.logger.debug ("**********************************")

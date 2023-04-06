@@ -32,6 +32,8 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
+import random # for random number generation
+import traceback
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -56,8 +58,9 @@ class PublisherMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
-    self.zk_obj = None # handle to the ZK object
+    self.zk_adapter = None # handle to the ZK object
     self.disc_leader = None # the leader of the discovery service
+    self.broker_leader = None # the leader of the broker service
 
   ########################################
   # configure/initialize
@@ -102,7 +105,11 @@ class PublisherMW ():
       #------------------------------------------
       # Watch for the primary discovery service
       self.logger.debug ("PublisherMW::configure - watch for the primary discovery service")
-      self.disc_leader = self.watch_primary_discovery_service() # a blocking call to wait for the primary discovery service to arrive
+      self.first_watch(type="discovery")
+      self.leader_watcher(type="discovery")
+      # Wait for the primary discovery service to be elected
+      while not self.disc_leader:
+        time.sleep(1) 
       self.logger.debug ("PublisherMW::configure - primary discovery service is at %s" % self.disc_leader)
 
       # Now connect ourselves to the discovery service. Recall that the IP/port were
@@ -127,11 +134,11 @@ class PublisherMW ():
   def invoke_zk(self, args, logger):
       try:
         # start the zookeeper adapter in a separate thread
-        self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
+        self.zk_adapter = ZookeeperAPI.ZKAdapter(args, logger)
         #-----------------------------------------------------------
-        self.zk_obj.init_zkclient ()
+        self.zk_adapter.init_zkclient ()
         #-----------------------------------------------------------
-        self.zk_obj.start ()
+        self.zk_adapter.start ()
       
       except Exception as e:
         raise e
@@ -157,7 +164,7 @@ class PublisherMW ():
         self.req = context.socket(zmq.REQ)
         # Connet to the broker
         #--------------------------------------
-        data, stat = self.zk_obj.get(path) 
+        data, stat = self.zk_adapter.get(path) 
         conn_string = data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
@@ -175,7 +182,7 @@ class PublisherMW ():
         self.sub = context.socket(zmq.SUB)
         # Connet to the broker
         #--------------------------------------
-        data, stat = self.zk_obj.get(path) 
+        data, stat = self.zk_adapter.get(path) 
         conn_string = data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
@@ -191,61 +198,47 @@ class PublisherMW ():
     
 
   ########################################
-  # watch for the primary discovery service
+  # the first watch
   ########################################
-  def watch_primary_discovery_service (self):
-    try:
-      #--------------------------------------
-      while True:
-        leader_addr = self.on_leader_change("discovery")
-        if leader_addr is not None:
-          return leader_addr
-        time.sleep(1)
-      #--------------------------------------
-
-    except Exception as e:
-      raise e 
+  def first_watch (self, type="discovery"):
+    if type == "discovery":
+      leader_path = self.zk_adapter.discoveryLeaderPath
+    elif type == "broker":
+      leader_path = self.zk_adapter.brokerLeaderPath
     
-
-  ########################################
-  # watch for the primary broker
-  ########################################
-  def watch_primary_broker (self):
     try:
-      #--------------------------------------
-      while True:
-        leader_addr = self.on_leader_change("broker")
-        if leader_addr is not None:
-          return leader_addr
-        time.sleep(1)
-      #--------------------------------------
-
+      leader_addr = self.zk_adapter.get_leader(leader_path)
+      self.logger.debug ("PublisherMW::first_watch -- the leader is {}".format (leader_addr))
+      self.update_leader(type, leader_addr)
     except Exception as e:
-      raise e 
-
+      raise e
 
   ########################################
   # on leader change
   ########################################
-  def on_leader_change (self, type):
-    """subscribe on leader change"""
-    try:
-      # ------------------------------
+  def leader_watcher (self, type="discovery"):
+      """watch the leader znode"""
       if type == "discovery":
-        path, leader_path = self.zk_obj.discLeaderPath, self.zk_obj.discLeaderPath
+        leader_path = self.zk_adapter.discoveryLeaderPath
       elif type == "broker":
-        path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
-      #-------------------------------
-      leader = self.zk_obj.leader_watcher (leader_path)
-      #-------------------------------
-      return leader
+        leader_path = self.zk_adapter.brokerLeaderPath
+      
+      try:
+        @self.zk_adapter.zk.DataWatch(leader_path)
+        def watch_node (data, stat, event):
+          """if the primary entity(broker/discovery service) goes down, elect a new one"""
+          self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+          self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+          
+          leader_addr = data.decode('utf-8')
+          self.update_leader(type, leader_addr)
+          self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
 
-    except ZookeeperError as e:
-        self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
-        raise
-    except:
-        self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
-        raise
+      except Exception as e:
+          self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+          traceback.print_exc()
+          raise e 
+
 
   #------------------------------------------
 
@@ -312,6 +305,7 @@ class PublisherMW ():
     except Exception as e:
       raise e
 
+
   ########################################
   # deregister with the discovery service
   ########################################
@@ -353,6 +347,7 @@ class PublisherMW ():
     except Exception as e:
       raise e
 
+
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
   #################################################################
@@ -374,6 +369,7 @@ class PublisherMW ():
     except Exception as e:
       raise e
             
+
   #################################################################
   # handle an incoming reply
   #################################################################
