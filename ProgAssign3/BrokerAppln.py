@@ -137,8 +137,8 @@ class PublisherAppln ():
 
 
       while True:
-        self.mw_obj.lookup_topic (self.topiclist)
-        self.mw_obj.disseminateViaBroker()
+        if self.mw_obj.lookup_topic (self.topiclist): # if lookup is successful
+          self.mw_obj.disseminateViaBroker()
 
         
     except Exception as e:

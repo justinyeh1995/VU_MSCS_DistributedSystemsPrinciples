@@ -120,10 +120,10 @@ class DiscoveryMW ():
   ################
   # broadcasr the change of leader
   ################
-  def broadcast_to_discovery_nodes(self, buf):
+  def broadcast_to_discovery_nodes(self, event, buf):
     try:
       self.logger.debug("DiscoveryMW::broadcast_to_discovery_nodes - invoked")
-      self.pub.send_multipart (["discovery".encode("utf-8"), buf])
+      self.pub.send_multipart (["discovery".encode("utf-8") + b":" + event.encode("utf-8"), buf])
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -314,7 +314,7 @@ class DiscoveryMW ():
         info["topiclist"] = topiclist2json
         buf2send = json.dumps(info).encode('utf-8')
         #-----------------------------------------------------------
-        self.broadcast_to_discovery_nodes (buf2send)
+        self.broadcast_to_discovery_nodes ("register", buf2send)
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
         
@@ -323,7 +323,7 @@ class DiscoveryMW ():
         self.registry[uid] = {"role": "sub",
                                 "name": uid}
         #-----------------------------------------------------------
-        self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
+        self.broadcast_to_discovery_nodes ("register", json.dumps(self.registry[uid]).encode('utf-8'))
 
       elif role == discovery_pb2.ROLE_BOTH:
         
@@ -344,7 +344,7 @@ class DiscoveryMW ():
         topiclist2json = json.dumps([topic for topic in info["topiclist"]])
         info["topiclist"] = topiclist2json
         buf2send = json.dumps(info).encode('utf-8')
-        self.broadcast_to_discovery_nodes (buf2send)
+        self.broadcast_to_discovery_nodes ("register", buf2send)
         #-----------------------------------------------------------
         self.zk_adapter.register_node (self.registry[uid]) # register broker node in zookeeper
         self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
@@ -374,7 +374,7 @@ class DiscoveryMW ():
       self.logger.debug ("DiscoveryMW::Deregistration info")
       self.logger.debug (self.registry)
       #-----------------------------------------------------------
-      self.broadcast_to_discovery_nodes (json.dumps({"name": name}).encode('utf-8'))
+      self.broadcast_to_discovery_nodes ("deregister", json.dumps({"name": name}).encode('utf-8'))
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -522,11 +522,12 @@ class DiscoveryMW ():
           self.logger.debug ("DiscoveryMW::event_loop - perform the merge")
           #----------------------------------------------------------
           incoming_msg = self.sub.recv_multipart()
+          flag = incoming_msg[-2]
           register_msg = incoming_msg[-1]
           register_msg = json.loads(register_msg.decode("utf-8"))
           #----------------------------------------------------------
           uid = register_msg["name"]
-          if uid in self.registry:
+          if b"deregister" in flag:
             self.logger.debug ("DiscoveryMW::event loop - deregister uid = {}".format(uid))
             del self.registry[uid]
           #----------------------------------------------------------
