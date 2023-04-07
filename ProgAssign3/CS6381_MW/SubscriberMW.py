@@ -185,7 +185,7 @@ class SubscriberMW ():
         # Connet to the broker
         #--------------------------------------
         data, stat = self.zk_adapter.zk.get(path) 
-        conn_string = "tecp://" + data.decode('utf-8')
+        conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
         self.sub.connect(conn_string)
