@@ -336,8 +336,8 @@ class SubscriberMW ():
 
       infoList = self.event_loop()
       pubList = infoList.publishers
-
-      #self.logger.debug ("SubscriberMW::lookup - publishers = {}".format (pubList))
+ 
+      self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
 
       if not pubList:
           return False # return to Appln layer and lookup again
