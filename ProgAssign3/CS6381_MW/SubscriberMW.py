@@ -328,7 +328,7 @@ class SubscriberMW ():
       # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
       # a real string
       buf2send = disc_req.SerializeToString ()
-      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
+      self.logger.debug ("Stringified serialized buf")
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")

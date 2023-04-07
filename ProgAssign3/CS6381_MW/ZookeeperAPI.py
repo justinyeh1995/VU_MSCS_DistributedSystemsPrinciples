@@ -111,9 +111,13 @@ class ZKAdapter():
                 znode = self.brokerPath + "/" + info["name"] 
                 value = info["addr"] + ":" + str (info["port"])
             # create the znode
-            self.logger.debug (("ZookeeperAdapter::add_node -- create znode: {}".format (znode)))
-            self.zk.create (znode, value=value.encode('utf-8') , ephemeral=True, makepath=True)
-        
+            if not self.zk.exists (znode):
+                self.logger.debug (("ZookeeperAdapter::add_node -- create znode: {}".format (znode)))
+                self.zk.create (znode, value=value.encode('utf-8') , ephemeral=True, makepath=True)
+            else:
+                self.logger.debug (("ZookeeperAdapter::add_node -- znode already exists: {}".format (znode)))
+                self.zk.set (znode, value=value.encode('utf-8'))
+                
         except Exception as e:
             self.logger.debug ("ZookeeperAdapter::add_node -- Exception: {}".format (e))
             traceback.print_exc()

@@ -348,6 +348,7 @@ class DiscoveryMW ():
         #-----------------------------------------------------------
         self.zk_adapter.register_node (self.registry[uid]) # register broker node in zookeeper
         self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
+        self.broker_leader_addr = self.zk_adapter.get_leader (self.zk_adapter.brokerLeaderPath) # get leader address
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
@@ -456,8 +457,7 @@ class DiscoveryMW ():
         elif self.dissemination == "ViaBroker": 
           for name, detail in self.registry.items():
             if (detail["role"] == "broker" 
-                and set(detail["topiclist"]) & set(topiclist) 
-                and detail["addr"] + ":" + str(detail["port"]) == self.broker_leader.decode("utf-8")):
+                and detail["addr"] + ":" + str(detail["port"]) == self.broker_leader_addr):
               info = discovery_pb2.RegistrantInfo ()
               info.id = name
               info.addr = detail["addr"]
