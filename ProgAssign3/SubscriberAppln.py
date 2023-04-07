@@ -110,7 +110,8 @@ class SubscriberAppln ():
       # the primary discovery service is found in the configure() method, bad design, gg
       #-------------------------------------------------
       if self.lookup == "ViaBroker":  
-        self.mw_obj.watch_primary_broker() # a blocking call to watch primary broker
+        self.mw_obj.first_watch(type="broker")
+        self.mw_obj.leader_watcher(type="broker")
       #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
@@ -123,17 +124,7 @@ class SubscriberAppln ():
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
 
-      self.mw_obj.lookup_topic (self.topiclist)
-
       while True:
-          #-------------------------------------------------          
-          if self.mw_obj.on_leader_change(type="discovery"):
-            if self.lookup == "Direct":
-              self.mw_obj.lookup_topic (self.topiclist)
-          #-------------------------------------------------
-          if self.lookup == "ViaBroker":  
-              self.mw_obj.on_leader_change(type="broker")
-          #-------------------------------------------------
           self.mw_obj.lookup_topic (self.topiclist)
           # pass each topic to mw
           self.mw_obj.subscribe()

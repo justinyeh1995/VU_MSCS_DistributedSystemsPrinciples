@@ -118,9 +118,10 @@ class DiscoveryMW ():
   ################
   # broadcasr the change of leader
   ################
-  def broadcast_to_discovery_nodes(self, info):
+  def broadcast_to_discovery_nodes(self, buf):
     try:
-      self.pub.send_multipart([b" ", b"discovery", info])
+      self.logger.debug("DiscoveryMW::broadcast_to_discovery_nodes - invoked")
+      self.pub.send_multipart (["discovery".encode("utf-8"), buf])
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -168,7 +169,7 @@ class DiscoveryMW ():
             continue
           #------------------------------------------
           zk_resp = self.zk_adapter.zk.get(self.zk_adapter.discoveryPath + "/" + child)
-          addr = zk_resp[0].decode("utf-8")
+          addr = zk_resp[0].split(b":")[0].decode("utf-8") + ":" + self.pub_port
           self.logger.debug("DiscoveryMW::connect_discovery_nodes - addr: {}".format(addr))
           #------------------------------------------
           self.connect_single_node(addr)
@@ -187,7 +188,7 @@ class DiscoveryMW ():
       if node and node != self.addr + ":" + str(self.port):
         self.logger.debug("DiscoveryMW::connect_single_node - node address: {}".format(node))
         self.sub.connect("tcp://" + node)
-        self.sub.setsockopt(zmq.SUBSCRIBE, b"discovery")
+        self.sub.setsockopt(zmq.SUBSCRIBE, "discovery".encode("utf-8"))
       self.logger.debug ("DiscoveryMW::connect_songle_node - subscribed to this new discovery node")
     except Exception as e:
       traceback.print_exc()
@@ -309,6 +310,7 @@ class DiscoveryMW ():
         topiclist2json = json.dumps([topic for topic in info["topiclist"]])
         info["topiclist"] = topiclist2json
         buf2send = json.dumps(info).encode('utf-8')
+        #-----------------------------------------------------------
         self.broadcast_to_discovery_nodes (buf2send)
 
       elif role == discovery_pb2.ROLE_SUBSCRIBER:
@@ -356,13 +358,20 @@ class DiscoveryMW ():
   ########################################
   # deregister info from storage
   ########################################
-  def handle_deregister (self, name):
+  def handle_deregister (self, request):
     '''handle deregistrations'''
     try:
+      req_info = request.deregister_req
+      registrant = req_info.info
+      name = registrant.id
+      #-----------------------------------------------------------
       self.logger.debug ("DiscoveryMW::Providing Deregistration service")
       self.logger.debug ("DiscoveryMW::Deregistering {}".format(name))
       del self.registry[name]
       self.logger.debug ("DiscoveryMW::Deregistration info")
+      print(self.registry)
+      #-----------------------------------------------------------
+      self.broadcast_to_discovery_nodes (json.dumps({"name": name}).encode('utf-8'))
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -513,13 +522,17 @@ class DiscoveryMW ():
           self.logger.debug ("DiscoveryMW::event_loop - perform the merge")
           #----------------------------------------------------------
           incoming_msg = self.sub.recv_multipart()
-          self.logger.debug ("DiscoveryMW::event_loop - incoming_msg: {}".format(incoming_msg))
           register_msg = incoming_msg[-1]
           register_msg = json.loads(register_msg.decode("utf-8"))
-          register_msg["topiclist"] = json.loads(register_msg["topiclist"])
           #----------------------------------------------------------
           uid = register_msg["name"]
-          if uid not in self.registry:
+          if uid in self.registry:
+            self.logger.debug ("DiscoveryMW::event loop - deregister uid = {}".format(uid))
+            del self.registry[uid]
+          #----------------------------------------------------------
+          else:
+            register_msg["topiclist"] = json.loads(register_msg["topiclist"])
+            self.logger.debug ("DiscoveryMW::event loop - register uid = {}".format(uid))
             self.registry[uid] = register_msg
 
           self.logger.debug ("DiscoveryMW::event_loop - now the registry looks like: {}".format(self.registry))

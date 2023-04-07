@@ -41,11 +41,12 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
+import traceback # for printing stack traces
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
 from CS6381_MW import ZookeeperAPI 
-from kazoo.exceptions import ZookeeperError
+
 
 # import any other packages you need.
 
@@ -65,7 +66,7 @@ class SubscriberMW ():
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to sublish our topics
     self.topiclist = topiclist # list of topics we are interested in
-    self.zk_obj = None # handle to the ZK object
+    self.zk_adapter = None # handle to the ZK object
     self.disc_leader = None # the leader of the discovery service
     self.broker_leader = None # the leader of the broker service
 
@@ -105,7 +106,11 @@ class SubscriberMW ():
       #------------------------------------------
       # Watch for the primary discovery service
       self.logger.debug ("SubscriberMW::configure - watch for the primary discovery service")
-      self.disc_leader = self.watch_primary_discovery_service() # a blocking call to wait for the primary discovery service to arrive
+      self.first_watch(type="discovery")
+      self.leader_watcher(type="discovery")
+      # Wait for the primary discovery service to be elected
+      while not self.disc_leader:
+        time.sleep(1) 
       self.logger.debug ("SubscriberMW::configure - primary discovery service is at %s" % self.disc_leader)
 
       # Now connect ourselves to the discovery service. Recall that the IP/port were
@@ -130,13 +135,14 @@ class SubscriberMW ():
   def invoke_zk(self, args, logger):
       try:
         # start the zookeeper adapter in a separate thread
-        self.zk_obj = ZookeeperAPI.ZKAdapter(args, logger)
+        self.zk_adapter = ZookeeperAPI.ZKAdapter(args, logger)
         #-----------------------------------------------------------
-        self.zk_obj.init_zkclient ()
+        self.zk_adapter.init_zkclient ()
         #-----------------------------------------------------------
-        self.zk_obj.start ()
+        self.zk_adapter.start ()
       
       except Exception as e:
+        traceback.print_exc()
         raise e
 
 
@@ -160,8 +166,8 @@ class SubscriberMW ():
         self.req = context.socket(zmq.REQ)
         # Connet to the broker
         #--------------------------------------
-        data, stat = self.zk_obj.get(path) 
-        conn_string = data.decode('utf-8')
+        data, stat = self.zk_adapter.zk.get(path) 
+        conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
         self.req.connect(conn_string)
@@ -178,8 +184,8 @@ class SubscriberMW ():
         self.sub = context.socket(zmq.SUB)
         # Connet to the broker
         #--------------------------------------
-        data, stat = self.zk_obj.get(path) 
-        conn_string = data.decode('utf-8')
+        data, stat = self.zk_adapter.zk.get(path) 
+        conn_string = "tecp://" + data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
         self.sub.connect(conn_string)
@@ -190,74 +196,57 @@ class SubscriberMW ():
         self.poller.register (self.sub, zmq.POLLIN)
 
     except Exception as e:
+      traceback.print_exc()
       raise e
     
 
   ########################################
-  # watch for the primary discovery service
+  # the first watch
   ########################################
-  def watch_primary_discovery_service (self):
-    try:
-      #--------------------------------------
-      while True:
-        leader_addr = self.on_leader_change("discovery")
-        if leader_addr is not None:
-          return leader_addr
-        time.sleep(1)
-      #--------------------------------------
-
-    except Exception as e:
-      raise e 
+  def first_watch (self, type="discovery"):
+    if type == "discovery":
+      leader_path = self.zk_adapter.discoveryLeaderPath
+    elif type == "broker":
+      leader_path = self.zk_adapter.brokerLeaderPath
     
-
-  ########################################
-  # watch for the primary broker
-  ########################################
-  def watch_primary_broker (self):
     try:
-      #--------------------------------------
-      while True:
-        leader_addr = self.on_leader_change("broker")
-        if leader_addr is not None:
-          return leader_addr
-        time.sleep(1)
-      #--------------------------------------
-
+      leader_addr = self.zk_adapter.get_leader(leader_path)
+      self.logger.debug ("PublisherMW::first_watch -- the leader is {}".format (leader_addr))
+      self.update_leader(type, leader_addr)
     except Exception as e:
-      raise e 
+      traceback.print_exc()
+      raise e
 
 
   ########################################
   # on leader change
   ########################################
-  def on_leader_change (self, type):
-    """subscribe on leader change"""
-    try:
-      # ------------------------------
+  def leader_watcher (self, type="discovery"):
+      """watch the leader znode"""
       if type == "discovery":
-        path, leader_path = self.zk_obj.discLeaderPath, self.zk_obj.discLeaderPath
+        leader_path = self.zk_adapter.discoveryLeaderPath
       elif type == "broker":
-        path, leader_path = self.zk_obj.brokerPath, self.zk_obj.brokerLeaderPath
-      #-------------------------------
-      leader = self.zk_obj.leader_watcher (path, leader_path)
-      #-------------------------------
-      return leader
+        leader_path = self.zk_adapter.brokerLeaderPath
+      
+      try:
+        @self.zk_adapter.zk.DataWatch(leader_path)
+        def watch_node (data, stat, event):
+          """if the primary entity(broker/discovery service) goes down, elect a new one"""
+          self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+          self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+          
+          leader_addr = data.decode('utf-8')
+          self.update_leader(type, leader_addr)
+          self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+          self.reconnect(type, leader_path)
 
-    except ZookeeperError as e:
-        self.logger.debug  ("ZookeeperAdapter::run_driver -- ZookeeperError: {}".format (e))
-        raise
-    except:
-        self.logger.debug ("Unexpected error in run_driver:", sys.exc_info()[0])
-        raise
+      except Exception as e:
+          self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+          traceback.print_exc()
+          raise e 
+
 
   #---------------------------------------------------------------------------------------------
-
-  ######################
-  # temparory function
-  ######################
-  def setDissemination (self, dissemination):
-      self.dissemination = dissemination
-
 
   ########################################
   # register with the discovery service
@@ -316,6 +305,7 @@ class SubscriberMW ():
       
     
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -360,6 +350,7 @@ class SubscriberMW ():
       return True
 
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -377,6 +368,7 @@ class SubscriberMW ():
       self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
 
     except Exception as e:
+      traceback.print_exc()
       raise e
             
 
@@ -399,6 +391,7 @@ class SubscriberMW ():
           return self.handle_reply ()
 
     except Exception as e:
+      traceback.print_exc()
       raise e
             
 
@@ -437,6 +430,7 @@ class SubscriberMW ():
         raise Exception ("Unrecognized response message")
 
     except Exception as e:
+      traceback.print_exc()
       raise e
             
             

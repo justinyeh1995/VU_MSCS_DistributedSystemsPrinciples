@@ -62,12 +62,12 @@ class PublisherMW ():
     self.disc_leader = None # the leader of the discovery service
     self.broker_leader = None # the leader of the broker service
 
+
   ########################################
   # configure/initialize
   ########################################
   def configure (self, args):
     ''' Initialize the object '''
-
     try:
       # Here we initialize any internal variables
       self.logger.debug ("PublisherMW::configure")
@@ -164,8 +164,8 @@ class PublisherMW ():
         self.req = context.socket(zmq.REQ)
         # Connet to the broker
         #--------------------------------------
-        data, stat = self.zk_adapter.get(path) 
-        conn_string = data.decode('utf-8')
+        data, stat = self.zk_adapter.zk.get(path) 
+        conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
         self.req.connect(conn_string)
@@ -182,8 +182,8 @@ class PublisherMW ():
         self.sub = context.socket(zmq.SUB)
         # Connet to the broker
         #--------------------------------------
-        data, stat = self.zk_adapter.get(path) 
-        conn_string = data.decode('utf-8')
+        data, stat = self.zk_adapter.zk.get(path) 
+        conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
         self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
         self.sub.connect(conn_string)
@@ -194,6 +194,7 @@ class PublisherMW ():
         self.poller.register (self.sub, zmq.POLLIN)
 
     except Exception as e:
+      traceback.print_exc()
       raise e
     
 
@@ -211,7 +212,9 @@ class PublisherMW ():
       self.logger.debug ("PublisherMW::first_watch -- the leader is {}".format (leader_addr))
       self.update_leader(type, leader_addr)
     except Exception as e:
+      traceback.print_exc()
       raise e
+
 
   ########################################
   # on leader change
@@ -233,6 +236,9 @@ class PublisherMW ():
           leader_addr = data.decode('utf-8')
           self.update_leader(type, leader_addr)
           self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+          if type == "discovery":
+            self.logger.debug ("PublisherMW::leader_watcher -- reconnect to the new discovery service")
+            self.reconnect(type, leader_path)
 
       except Exception as e:
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
@@ -303,6 +309,7 @@ class PublisherMW ():
       
     
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -311,15 +318,24 @@ class PublisherMW ():
   ########################################
   def deregister (self, name):
     try:
-      self.logger.debug ("PublisherMW::deregister")
+      self.logger.debug ("PublisherMW::deregistering {} from discovery service".format (name))
 
       # The following code shows serialization using the protobuf generated code.
       
       # first build a deregister req message
       self.logger.debug ("PublisherMW::deregister - populate the nested deregister req")
 
+      registrant_info = discovery_pb2.RegistrantInfo ()
+      registrant_info.id = name
+
+      registrant_info.addr = self.addr 
+      registrant_info.port = int(self.port)
+      registrant_info.timestamp = time.time()
+
       deregister_req = discovery_pb2.DeregisterReq ()  # allocate 
-      deregister_req.id = name
+      self.logger.debug ("PublisherMW::deregister - done populating nested DeregisterReq")
+      deregister_req.role = discovery_pb2.ROLE_PUBLISHER # this will change to an enum later on
+      deregister_req.info.CopyFrom (registrant_info)
       self.logger.debug ("PublisherMW::deregister - done populating nested DeregisterReq")
 
       # Build the outer layer Discovery Message
@@ -345,6 +361,7 @@ class PublisherMW ():
       return self.event_loop ()
       
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 

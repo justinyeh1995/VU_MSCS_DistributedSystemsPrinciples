@@ -112,6 +112,7 @@ message DiscoveryReq
               RegisterReq register_req = 2;
               IsReadyReq isready_req = 3;
               LookupPubByTopicReq lookup_req = 4;
+              DeregisterReq deregister_req = 5;
               // add more 
         }
 }
