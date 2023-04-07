@@ -449,7 +449,7 @@ class DiscoveryMW ():
               info.port = detail["port"]
               topic_msg.publishers.append(info)
 
-        elif self.dissemination == "viabroker": 
+        elif self.dissemination == "ViaBroker": 
           for name, detail in self.registry.items():
             if (detail["role"] == "broker" 
                 and set(detail["topiclist"]) & set(topiclist) 
@@ -462,7 +462,7 @@ class DiscoveryMW ():
 
       elif role == discovery_pb2.ROLE_BOTH:
         for name, detail in self.registry.items():
-          if detail["role"] == "pub" and set(detail["topiclist"]) & set(topiclist):
+          if detail["role"] == "pub": 
             info = discovery_pb2.RegistrantInfo ()
             info.id = name
             info.addr = detail["addr"]

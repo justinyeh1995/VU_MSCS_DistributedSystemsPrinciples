@@ -421,9 +421,6 @@ class SubscriberMW ():
       if (disc_resp.msg_type == discovery_pb2.TYPE_REGISTER):
         # this is a response to register message
         return disc_resp.register_resp.status
-      elif (disc_resp.msg_type == discovery_pb2.TYPE_ISREADY):
-        # this is a response to is ready request
-        return disc_resp.isready_resp.status
       elif (disc_resp.msg_type == discovery_pb2.TYPE_LOOKUP_PUB_BY_TOPIC):
         # this is a response to is ready request
         return disc_resp.lookup_resp # relations with proto definitions

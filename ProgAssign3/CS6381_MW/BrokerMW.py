@@ -27,9 +27,11 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
+import traceback # for printing stack traces
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
+from CS6381_MW import ZookeeperAPI
 
 # import any other packages you need.
 
@@ -49,6 +51,10 @@ class BrokerMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
+    self.zk_adapter = None # handle to the ZK object
+    self.disc_leader = None # the leader of the discovery service
+    self.broker_leader = None # the leader of the broker service
+    
 
   ########################################
   # configure/initialize
@@ -78,17 +84,31 @@ class BrokerMW ():
       self.sub = context.socket (zmq.SUB)
       self.pub = context.socket (zmq.PUB)
 
-      # register the REQ socket for incoming events
-      self.logger.debug ("BrokerMW::configure - register the REQ socket for incoming replies")
-      self.poller.register (self.req, zmq.POLLIN)
-      
+      #------------------------------------------------------------
+      self.logger.debug ("BrokerMW::configure - obtain ZK adapter")
+      self.invoke_zk (args, self.logger)
+
+      #------------------------------------------------------------
+      # watch for the leader of the discovery service
+      self.logger.debug ("BrokerMW::configure - watch for the leader of the discovery service")
+      self.first_watch(type="discovery")
+      self.leader_watcher(type="discovery")
+      # Wait for the primary discovery service to be elected
+      while not self.disc_leader:
+        time.sleep(1) 
+      self.logger.debug ("BrokerMW::configure - discovery leader is: " + self.disc_leader)
+
       # Now connect ourselves to the discovery service. Recall that the IP/port were
       # supplied in our argument parsing.
       self.logger.debug ("BrokerMW::configure - connect to Discovery service")
       # For these assignments we use TCP. The connect string is made up of
       # tcp:// followed by IP addr:port number.
-      connect_str = "tcp://" + args.discovery
+      connect_str = "tcp://" + self.disc_leader
       self.req.connect (connect_str)
+      
+      # register the REQ socket for incoming events
+      self.logger.debug ("BrokerMW::configure - register the REQ socket for incoming replies")
+      self.poller.register (self.req, zmq.POLLIN)
       
       # Since we are the publisher, the best practice as suggested in ZMQ is for us to
       # "bind" to the PUB socket
@@ -101,6 +121,125 @@ class BrokerMW ():
     except Exception as e:
       raise e
 
+
+  ########################################
+  # start the middleware
+  ########################################
+  def invoke_zk(self, args, logger):
+      try:
+        # start the zookeeper adapter in a separate thread
+        self.zk_adapter = ZookeeperAPI.ZKAdapter(args, logger)
+        #-----------------------------------------------------------
+        self.zk_adapter.init_zkclient ()
+        #-----------------------------------------------------------
+        self.zk_adapter.start ()
+      
+      except Exception as e:
+        traceback.print_exc()
+        raise e
+
+
+  def update_leader (self, type, leader):
+    if type == "discovery":
+      self.disc_leader = leader
+
+    elif type == "broker":
+      self.broker_leader = leader
+
+
+  def reconnect (self, type, path):
+    try:
+      if type == "discovery":
+        #--------------------------------------
+        self.req.close()
+        #--------------------------------------
+        time.sleep(1)
+        #--------------------------------------
+        context = zmq.Context()
+        self.req = context.socket(zmq.REQ)
+        # Connet to the broker
+        #--------------------------------------
+        data, stat = self.zk_adapter.zk.get(path) 
+        conn_string = "tcp://" + data.decode('utf-8')
+        #--------------------------------------
+        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.req.connect(conn_string)
+        #--------------------------------------
+        self.poller.register (self.req, zmq.POLLIN)
+      
+      elif type == "broker":
+        #--------------------------------------
+        self.sub.close()
+        #--------------------------------------
+        time.sleep(1)
+        #--------------------------------------
+        context = zmq.Context()
+        self.sub = context.socket(zmq.SUB)
+        # Connet to the broker
+        #--------------------------------------
+        data, stat = self.zk_adapter.zk.get(path) 
+        conn_string = "tcp://" + data.decode('utf-8')
+        #--------------------------------------
+        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.sub.connect(conn_string)
+        #--------------------------------------
+        for topic in self.topiclist:
+          self.sub.setsockopt(zmq.SUBSCRIBE, topic.encode('utf-8'))
+        #--------------------------------------
+        self.poller.register (self.sub, zmq.POLLIN)
+
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+    
+
+  ########################################
+  # the first watch
+  ########################################
+  def first_watch (self, type="discovery"):
+    if type == "discovery":
+      leader_path = self.zk_adapter.discoveryLeaderPath
+    elif type == "broker":
+      leader_path = self.zk_adapter.brokerLeaderPath
+    
+    try:
+      leader_addr = self.zk_adapter.get_leader(leader_path)
+      self.logger.debug ("PublisherMW::first_watch -- the leader is {}".format (leader_addr))
+      self.update_leader(type, leader_addr)
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+
+
+  ########################################
+  # on leader change
+  ########################################
+  def leader_watcher (self, type="discovery"):
+      """watch the leader znode"""
+      if type == "discovery":
+        leader_path = self.zk_adapter.discoveryLeaderPath
+      elif type == "broker":
+        leader_path = self.zk_adapter.brokerLeaderPath
+      
+      try:
+        @self.zk_adapter.zk.DataWatch(leader_path)
+        def watch_node (data, stat, event):
+          """if the primary entity(broker/discovery service) goes down, elect a new one"""
+          self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+          self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+          
+          leader_addr = data.decode('utf-8')
+          self.update_leader(type, leader_addr)
+          self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+          self.reconnect(type, leader_path)
+
+      except Exception as e:
+          self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+          traceback.print_exc()
+          raise e 
+
+
+  #----------------------------------------
 
   ########################################
   # register with the discovery service
@@ -166,6 +305,58 @@ class BrokerMW ():
       raise e
 
  
+  ########################################
+  # deregister with the discovery service
+  ########################################
+  def deregister (self, name):
+    try:
+      self.logger.debug ("PublisherMW::deregistering {} from discovery service".format (name))
+
+      # The following code shows serialization using the protobuf generated code.
+      
+      # first build a deregister req message
+      self.logger.debug ("PublisherMW::deregister - populate the nested deregister req")
+
+      registrant_info = discovery_pb2.RegistrantInfo ()
+      registrant_info.id = name
+
+      registrant_info.addr = self.addr 
+      registrant_info.port = int(self.port)
+      registrant_info.timestamp = time.time()
+
+      deregister_req = discovery_pb2.DeregisterReq ()  # allocate 
+      self.logger.debug ("PublisherMW::deregister - done populating nested DeregisterReq")
+      deregister_req.role = discovery_pb2.ROLE_PUBLISHER # this will change to an enum later on
+      deregister_req.info.CopyFrom (registrant_info)
+      self.logger.debug ("PublisherMW::deregister - done populating nested DeregisterReq")
+
+      # Build the outer layer Discovery Message
+      self.logger.debug ("PublisherMW::deregister - build the outer DiscoveryReq message")
+      disc_req = discovery_pb2.DiscoveryReq ()
+      disc_req.msg_type = discovery_pb2.TYPE_DEREGISTER
+      # It was observed that we cannot directly assign the nested field here.
+      # A way around is to use the CopyFrom method as shown
+      disc_req.deregister_req.CopyFrom (deregister_req)
+      self.logger.debug ("PublisherMW::deregister - done building the outer message")
+      
+      # now let us stringify the buffer and print it. This is actually a sequence of bytes and not
+      # a real string
+      buf2send = disc_req.SerializeToString ()
+      self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
+
+      # now send this to our discovery service
+      self.logger.debug ("PublisherMW::deregister - send stringified buffer to Discovery service")
+      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+
+      # now go to our event loop to receive a response to this request
+      self.logger.debug ("PublisherMW::deregister - now wait for reply")
+      return self.event_loop ()
+      
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+
+
   ######################
   ## Look Up by Topic ##
   ######################
@@ -193,6 +384,8 @@ class BrokerMW ():
 
       infoList = self.event_loop()
       pubList = infoList.publishers
+
+      self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
 
       if not pubList:
           return False # return to Appln layer and lookup again

@@ -65,7 +65,6 @@ class PublisherAppln ():
     self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
-    self.state = self.State.INITIALIZE # state that are we in
 
   ########################################
   # configure/initialize
@@ -118,33 +117,28 @@ class PublisherAppln ():
 
       # dump our contents (debugging purposes)
       self.dump ()
-      # First ask our middleware to keep a handle to us to make upcalls.
-      # This is related to upcalls. By passing a pointer to ourselves, the
-      # middleware will keep track of it and any time something must
-      # be handled by the application level, invoke an upcall.
-      self.logger.debug ("BrokerAppln::driver - upcall handle")
-      #self.mw_obj.set_upcall_handle (self)
+
+      # the primary discovery service is found in the configure() method, bad design, gg
+      #-------------------------------------------------
+      if self.lookup == "ViaBroker":  
+        self.mw_obj.first_watch(type="broker")
+        self.mw_obj.leader_watcher(type="broker")
+      #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("BrokerAppln::driver - register with the discovery service")
       result = self.mw_obj.register (self.name, self.topiclist)
       self.logger.debug ("BrokerAppln::driver - result of registration".format (result))
 
-      # Now keep checking with the discovery service if we are ready to go
-      self.logger.debug ("BrokerAppln::driver - check if are ready to go")
-      while (not self.mw_obj.is_ready ()):
-        time.sleep (5)  # sleep between calls so that we don't make excessive calls
-        self.logger.debug ("BrokerAppln::driver - check again if are ready to go")
-
       self.logger.debug ("BrokerAppln::driver - ready to go")
 
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
 
-      self.mw_obj.lookup_topic (self.topiclist)
 
       while True:
-          self.mw_obj.disseminateViaBroker()
+        self.mw_obj.lookup_topic (self.topiclist)
+        self.mw_obj.disseminateViaBroker()
 
         
     except Exception as e:
