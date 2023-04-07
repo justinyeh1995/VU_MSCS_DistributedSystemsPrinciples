@@ -318,8 +318,6 @@ class DiscoveryMW ():
         self.logger.debug ("DiscoveryMW::Storing Subscriber's information")
         uid = registrant.id
         self.registry[uid] = {"role": "sub",
-                                "addr": addr,
-                                "port": port,
                                 "name": uid}
         #-----------------------------------------------------------
         self.broadcast_to_discovery_nodes (json.dumps(self.registry[uid]).encode('utf-8'))
@@ -443,13 +441,12 @@ class DiscoveryMW ():
       if role == discovery_pb2.ROLE_SUBSCRIBER:
         if self.dissemination == "Direct":
           for name, detail in self.registry.items():
-            if (detail["role"] == "pub" 
-                and set(detail["topiclist"]) & set(topiclist)):
+            if detail["role"] == "pub":
+              print("detail", detail)
               info = discovery_pb2.RegistrantInfo ()
               info.id = name
               info.addr = detail["addr"]
               info.port = detail["port"]
-              info.timestamp = detail["timestamp"]
               topic_msg.publishers.append(info)
 
         elif self.dissemination == "viabroker": 
@@ -461,7 +458,6 @@ class DiscoveryMW ():
               info.id = name
               info.addr = detail["addr"]
               info.port = detail["port"]
-              info.timestamp = detail["timestamp"]
               topic_msg.publishers.append(info)
 
       elif role == discovery_pb2.ROLE_BOTH:
@@ -471,7 +467,6 @@ class DiscoveryMW ():
             info.id = name
             info.addr = detail["addr"]
             info.port = detail["port"]
-            info.timestamp = detail["timestamp"]
             topic_msg.publishers.append(info)
 
       # Build the outer layer Discovery Message
@@ -497,6 +492,7 @@ class DiscoveryMW ():
       traceback.print_exc()
       raise e
   
+
   #################################################################
   # run the event loop where we expect to receive a reply to a sent request
   #################################################################
@@ -531,7 +527,8 @@ class DiscoveryMW ():
             del self.registry[uid]
           #----------------------------------------------------------
           else:
-            register_msg["topiclist"] = json.loads(register_msg["topiclist"])
+            if not uid.startswith("sub"):
+              register_msg["topiclist"] = json.loads(register_msg["topiclist"])
             self.logger.debug ("DiscoveryMW::event loop - register uid = {}".format(uid))
             self.registry[uid] = register_msg
 
