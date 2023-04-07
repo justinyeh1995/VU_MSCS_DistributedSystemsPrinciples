@@ -157,26 +157,32 @@ class DiscoveryMW ():
       @self.zk_adapter.zk.ChildrenWatch(self.zk_adapter.discoveryPath) # do we need to watch the children?
       def watch_children(children):
         #------------------------------------------
-        children = self.exclude_lock(children)
-        self.logger.debug("DiscoveryMW::connect_discovery_nodes - invoked")
-        self.logger.debug("DiscoveryMW::connect_discovery_nodes - children list: {}".format(children))
-        #------------------------------------------
-        for child in children:
+        try:
+          children = self.exclude_lock(children)
+          self.logger.debug("DiscoveryMW::connect_discovery_nodes - invoked")
+          self.logger.debug("DiscoveryMW::connect_discovery_nodes - children list: {}".format(children))
           #------------------------------------------
-          if not child.startswith("disc"):
-            continue
-          if child == self.name:
-            continue
-          if child in self.discovery_nodes:
-            continue
-          #------------------------------------------
-          zk_resp = self.zk_adapter.zk.get(self.zk_adapter.discoveryPath + "/" + child)
-          addr = zk_resp[0].split(b":")[0].decode("utf-8") + ":" + self.pub_port
-          self.logger.debug("DiscoveryMW::connect_discovery_nodes - addr: {}".format(addr))
-          #------------------------------------------
-          self.connect_single_node(addr)
-          #------------------------------------------
-          self.discovery_nodes.append(child)
+          for child in children:
+            #------------------------------------------
+            if not child.startswith("disc"):
+              continue
+            if child == self.name:
+              continue
+            if child in self.discovery_nodes:
+              continue
+            #------------------------------------------
+            zk_resp = self.zk_adapter.zk.get(self.zk_adapter.discoveryPath + "/" + child)
+            addr = zk_resp[0].split(b":")[0].decode("utf-8") + ":" + self.pub_port
+            self.logger.debug("DiscoveryMW::connect_discovery_nodes - addr: {}".format(addr))
+            #------------------------------------------
+            self.connect_single_node(addr)
+            #------------------------------------------
+            self.discovery_nodes.append(child)
+
+        except Exception as e:
+          traceback.print_exc()
+          raise e
+
     except Exception as e:
       traceback.print_exc()
       raise e

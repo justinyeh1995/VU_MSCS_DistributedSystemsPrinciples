@@ -119,6 +119,7 @@ class BrokerMW ():
       self.pub.bind (bind_string)
       
     except Exception as e:
+      traceback.print_exc()
       raise e
 
 
@@ -162,8 +163,11 @@ class BrokerMW ():
         data, stat = self.zk_adapter.zk.get(path) 
         conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
-        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.logger.debug ("SubscriberMW::reconnect - connect to Discovery service at {}".format (conn_string))
         self.req.connect(conn_string)
+        #--------------------------------------
+        #if self.poller:
+        #  self.poller.unregister(self.req)
         #--------------------------------------
         self.poller.register (self.req, zmq.POLLIN)
       
@@ -180,11 +184,14 @@ class BrokerMW ():
         data, stat = self.zk_adapter.zk.get(path) 
         conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
-        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.logger.debug ("SubscriberMW::reconnect - connect to Discovery service at {}".format (conn_string))
         self.sub.connect(conn_string)
         #--------------------------------------
         for topic in self.topiclist:
           self.sub.setsockopt(zmq.SUBSCRIBE, topic.encode('utf-8'))
+        #--------------------------------------
+        if self.poller:
+          self.poller.unregister(self.sub)
         #--------------------------------------
         self.poller.register (self.sub, zmq.POLLIN)
 
@@ -206,6 +213,7 @@ class BrokerMW ():
       leader_addr = self.zk_adapter.get_leader(leader_path)
       self.logger.debug ("PublisherMW::first_watch -- the leader is {}".format (leader_addr))
       self.update_leader(type, leader_addr)
+
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -224,15 +232,19 @@ class BrokerMW ():
       try:
         @self.zk_adapter.zk.DataWatch(leader_path)
         def watch_node (data, stat, event):
-          """if the primary entity(broker/discovery service) goes down, elect a new one"""
-          self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
-          self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
-          
-          leader_addr = data.decode('utf-8')
-          self.update_leader(type, leader_addr)
-          self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-          self.reconnect(type, leader_path)
+          try:
+            """if the primary entity(broker/discovery service) goes down, elect a new one"""
+            self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+            self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
 
+            leader_addr = data.decode('utf-8')
+            self.update_leader(type, leader_addr)
+            self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+            self.reconnect(type, leader_path)
+          except Exception as e:
+            traceback.print_exc()
+            raise e
+            
       except Exception as e:
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
           traceback.print_exc()

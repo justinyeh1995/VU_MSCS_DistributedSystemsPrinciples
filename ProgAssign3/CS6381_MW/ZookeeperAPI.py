@@ -77,13 +77,13 @@ class ZKAdapter():
         try:
             # next, create a znode for the discovery service with initial value of its address
             self.logger.debug  ("ZookeeperAdapter::run_driver -- create a znode for discovery service")
-            self.zk.ensure_path (self.root_path)
-            self.zk.ensure_path (self.discoveryPath)
-            self.zk.ensure_path (self.brokerPath)
+            #self.zk.ensure_path (self.root_path)
+            #self.zk.ensure_path (self.discoveryPath)
+            #self.zk.ensure_path (self.brokerPath)
             #-------------------------------------------
-            self.zk.ensure_path (self.leader_path)
-            self.zk.ensure_path (self.discoveryLeaderPath)
-            self.zk.ensure_path (self.brokerLeaderPath)
+            #self.zk.ensure_path (self.leader_path)
+            #self.zk.ensure_path (self.discoveryLeaderPath)
+            #self.zk.ensure_path (self.brokerLeaderPath)
             #-------------------------------------------
             if not self.zk.exists (self.path):
                 self.logger.debug (("ZookeeperAdapter::configure -- create znode: {}".format (self.path)))
@@ -211,7 +211,10 @@ class ZKAdapter():
         """Set the leader"""
         try:
             self.logger.debug ("ZookeeperAdapter::set_leader -- path = {}, value = {}".format (leader_path, value))
-            self.zk.set (leader_path, value=value.encode('utf-8'))
+            if not self.zk.exists (leader_path):
+                self.zk.create (leader_path, value=value.encode('utf-8') , ephemeral=True, makepath=True)
+            else:
+                self.zk.set (leader_path, value=value.encode('utf-8'))
         
         except Exception as e:
             traceback.print_exc()

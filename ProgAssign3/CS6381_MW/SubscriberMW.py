@@ -231,14 +231,18 @@ class SubscriberMW ():
       try:
         @self.zk_adapter.zk.DataWatch(leader_path)
         def watch_node (data, stat, event):
-          """if the primary entity(broker/discovery service) goes down, elect a new one"""
-          self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
-          self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
-          
-          leader_addr = data.decode('utf-8')
-          self.update_leader(type, leader_addr)
-          self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-          self.reconnect(type, leader_path)
+          try:
+            """if the primary entity(broker/discovery service) goes down, elect a new one"""
+            self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+            self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+
+            leader_addr = data.decode('utf-8')
+            self.update_leader(type, leader_addr)
+            self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+            self.reconnect(type, leader_path)
+          except Exception as e:
+            traceback.print_exc()
+            raise e
 
       except Exception as e:
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
