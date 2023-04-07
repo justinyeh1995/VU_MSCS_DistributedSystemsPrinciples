@@ -55,6 +55,8 @@ class DiscoveryMW ():
     self.registry = collections.defaultdict(dict) # {"topic1": [{"name":name, "user":uid1, "role": role},...],...}
     self.zk_adapter = None
     self.discovery_nodes = []
+    self.disc_leader = None
+    self.broker_leader = None
 
   ########################################
   # configure/initialize
@@ -260,6 +262,7 @@ class DiscoveryMW ():
     @self.zk_adapter.zk.ChildrenWatch(path)
     def watch_node(children):
       try:
+        self.logger.debug("DiscoveryMW::on_leader_change - invoked")
         leader_addr = self.zk_adapter.election (path, leader_path)
         self.logger.debug("DiscoveryMW::on_leader_change - leader: {}".format(leader_addr))
         self.update_leader ("discovery", leader_addr)
@@ -344,6 +347,7 @@ class DiscoveryMW ():
         self.broadcast_to_discovery_nodes (buf2send)
         #-----------------------------------------------------------
         self.zk_adapter.register_node (self.registry[uid]) # register broker node in zookeeper
+        self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)

@@ -109,7 +109,7 @@ class SubscriberAppln ():
       
       # the primary discovery service is found in the configure() method, bad design, gg
       #-------------------------------------------------
-      if self.lookup == "ViaBroker":  
+      if self.dissemination == "ViaBroker":  
         self.mw_obj.first_watch(type="broker")
         self.mw_obj.leader_watcher(type="broker")
       #-------------------------------------------------
