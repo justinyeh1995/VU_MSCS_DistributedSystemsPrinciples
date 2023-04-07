@@ -87,7 +87,7 @@ class ZKAdapter():
             #-------------------------------------------
             if not self.zk.exists (self.path):
                 self.logger.debug (("ZookeeperAdapter::configure -- create znode: {}".format (self.path)))
-                self.zk.create (self.path, value=value.encode('utf-8'), makepath=True)
+                self.zk.create (self.path, value=value.encode('utf-8'), ephemeral=True, makepath=True)
             else:
                 self.logger.debug (("ZookeeperAdapter::configure -- znode already exists: {}".format (self.path)))
                 self.zk.set (self.path, value=value.encode('utf-8'))
