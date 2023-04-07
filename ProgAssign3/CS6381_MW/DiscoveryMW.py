@@ -369,7 +369,7 @@ class DiscoveryMW ():
       self.logger.debug ("DiscoveryMW::Deregistering {}".format(name))
       del self.registry[name]
       self.logger.debug ("DiscoveryMW::Deregistration info")
-      print(self.registry)
+      self.logger.debug (self.registry)
       #-----------------------------------------------------------
       self.broadcast_to_discovery_nodes (json.dumps({"name": name}).encode('utf-8'))
     except Exception as e:
