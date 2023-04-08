@@ -87,7 +87,7 @@ class SubscriberMW ():
       
       # Next get the ZMQ context
       self.logger.debug ("SubscriberMW::configure - obtain ZMQ context")
-      context = zmq.Context ()  # returns a singleton object
+      self.context = zmq.Context ()  # returns a singleton object
 
       # get the ZMQ poller object
       self.logger.debug ("SubscriberMW::configure - obtain the poller")
@@ -95,8 +95,8 @@ class SubscriberMW ():
       
       # Now acquire the REQ and SUB sockets
       self.logger.debug ("SubscriberMW::configure - obtain REQ and SUB sockets")
-      self.req = context.socket (zmq.REQ)
-      self.sub = context.socket (zmq.SUB)
+      self.req = self.context.socket (zmq.REQ)
+      self.sub = self.context.socket (zmq.SUB)
 
       #------------------------------------------
       # Now acquire the ZK object
@@ -120,6 +120,7 @@ class SubscriberMW ():
       # tcp:// followed by IP addr:port number.
       connect_str = "tcp://" + self.disc_leader
       self.req.connect (connect_str)
+      self.req.setsockopt(zmq.RCVTIMEO, 1000) 
       
       # register the REQ socket for incoming events
       self.logger.debug ("SubscriberMW::configure - register the REQ socket for incoming replies")
@@ -157,13 +158,18 @@ class SubscriberMW ():
   def reconnect (self, type, path):
     try:
       if type == "discovery":
+        req_addr = self.req.getsockopt(zmq.LAST_ENDPOINT).decode('utf-8')
+        self.logger.debug ("BrokerMW::reconnect - disconnect from Discovery service at {}".format (req_addr))
+        self.logger.debug ("SubscriberMW::configure - reconnect to Discovery service")
+        time.sleep(1)
         #--------------------------------------
+        self.poller.unregister (self.req)
+        time.sleep(1)
         self.req.close()
         #--------------------------------------
         time.sleep(1)
         #--------------------------------------
-        context = zmq.Context()
-        self.req = context.socket(zmq.REQ)
+        self.req = self.context.socket(zmq.REQ)
         # Connet to the broker
         #--------------------------------------
         data, stat = self.zk_adapter.zk.get(path) 
@@ -175,13 +181,16 @@ class SubscriberMW ():
         self.poller.register (self.req, zmq.POLLIN)
       
       elif type == "broker":
+        self.logger.debug ("SubscriberMW::configure - reconnect to Discovery service")
+        time.sleep(1)
         #--------------------------------------
+        self.poller.unregister (self.sub)
+        time.sleep(1)
         self.sub.close()
         #--------------------------------------
         time.sleep(1)
         #--------------------------------------
-        context = zmq.Context()
-        self.sub = context.socket(zmq.SUB)
+        self.sub = self.context.socket(zmq.SUB)
         # Connet to the broker
         #--------------------------------------
         data, stat = self.zk_adapter.zk.get(path) 
@@ -232,14 +241,16 @@ class SubscriberMW ():
         @self.zk_adapter.zk.DataWatch(leader_path)
         def watch_node (data, stat, event):
           try:
-            """if the primary entity(broker/discovery service) goes down, elect a new one"""
-            self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
-            self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+            if data:
+              """if the primary entity(broker/discovery service) goes down, elect a new one"""
+              self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+              self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
 
-            leader_addr = data.decode('utf-8')
-            self.update_leader(type, leader_addr)
-            self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-            self.reconnect(type, leader_path)
+              leader_addr = data.decode('utf-8')
+              self.update_leader(type, leader_addr)
+              self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+              #if event:
+              #  self.reconnect(type, leader_path)
           except Exception as e:
             traceback.print_exc()
             raise e
@@ -336,10 +347,15 @@ class SubscriberMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
 
-      infoList = self.event_loop()
-      pubList = infoList.publishers
+      try:
+        self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+        infoList = self.event_loop()
+        pubList = infoList.publishers
+      except Exception as e:
+        self.logger.debug ("SubscriberMW::lookup - exception in send & recv")
+        self.reconnect(type="discovery", path=self.zk_adapter.discoveryLeaderPath)
+        return False
  
       self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
 
@@ -389,12 +405,19 @@ class SubscriberMW ():
       while True:
         # poll for events. We give it an infinite timeout.
         # The return value is a socket to event mask mapping
-        events = dict (self.poller.poll ())
+        events = dict (self.poller.poll (timeout=1000))
       
         # the only socket that should be enabled, if at all, is our REQ socket.
         if self.req in events:  # this is the only socket on which we should be receiving replies
           # handle the incoming reply and return the result
+          if self.req.closed:
+            self.logger.debug ("BrokerMW::event_loop - req socket closed")
+            time.sleep(1)
+            continue
           return self.handle_reply ()
+
+        time.sleep(1)
+        break
 
     except Exception as e:
       traceback.print_exc()

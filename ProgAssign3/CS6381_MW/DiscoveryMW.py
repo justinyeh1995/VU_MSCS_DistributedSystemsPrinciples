@@ -47,6 +47,7 @@ class DiscoveryMW ():
   def __init__ (self, logger):
     self.logger = logger  # internal logger for print statements
     self.rep = None # will be a ZMQ REQ socket to talk to Discovery service
+    self.context = None # ZMQ context
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
@@ -57,6 +58,7 @@ class DiscoveryMW ():
     self.discovery_nodes = []
     self.disc_leader = None
     self.broker_leader = None
+
 
   ########################################
   # configure/initialize
@@ -80,7 +82,7 @@ class DiscoveryMW ():
       
       # Now acquire the REQ socket
       self.logger.debug ("DiscoveryMW::configure - obtain REP socket")
-      self.rep = context.socket (zmq.REP)
+      self.rep = context.socket (zmq.REP)  # ROUTER socket
       
       # Since we are the "server", the best practice as suggested in ZMQ is for us to
       # "bind" to the REP socket
@@ -216,7 +218,8 @@ class DiscoveryMW ():
           #-----------------------------------------------------------
           self.zk_adapter.start () # start the Kazoo client
           #-----------------------------------------------------------
-          self.zk_adapter.register_discovery_node (self.addr + ":" + str (self.port)) # create the necessary znode of this discovery node
+          path = self.zk_adapter.discoveryPath + "/" + self.name
+          self.zk_adapter.register_node (path, self.addr + ":" + str (self.port)) # create the necessary znode of this discovery node
           #-----------------------------------------------------------
 
       except ZookeeperError as e:
@@ -352,7 +355,6 @@ class DiscoveryMW ():
         buf2send = json.dumps(info).encode('utf-8')
         self.broadcast_to_discovery_nodes ("register", buf2send)
         #-----------------------------------------------------------
-        self.zk_adapter.register_node (self.registry[uid]) # register broker node in zookeeper
         self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
         self.broker_leader_addr = self.zk_adapter.get_leader (self.zk_adapter.brokerLeaderPath) # get leader address
 

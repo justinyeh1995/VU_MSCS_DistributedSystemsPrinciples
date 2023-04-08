@@ -72,80 +72,25 @@ class ZKAdapter():
             raise
 
 
-    def register_discovery_node (self, value):
+    def register_node (self, path, value):
         """Configure the client driver program"""
         try:
             # next, create a znode for the discovery service with initial value of its address
             self.logger.debug  ("ZookeeperAdapter::run_driver -- create a znode for discovery service")
-            #self.zk.ensure_path (self.root_path)
-            #self.zk.ensure_path (self.discoveryPath)
-            #self.zk.ensure_path (self.brokerPath)
             #-------------------------------------------
-            #self.zk.ensure_path (self.leader_path)
-            #self.zk.ensure_path (self.discoveryLeaderPath)
-            #self.zk.ensure_path (self.brokerLeaderPath)
-            #-------------------------------------------
-            if not self.zk.exists (self.path):
-                self.logger.debug (("ZookeeperAdapter::configure -- create znode: {}".format (self.path)))
-                self.zk.create (self.path, value=value.encode('utf-8'), ephemeral=True, makepath=True)
+            if not self.zk.exists (path):
+                self.logger.debug (("ZookeeperAdapter::configure -- create znode: {}".format (path)))
+                self.zk.create (path, value=value.encode('utf-8'), ephemeral=True, makepath=True)
             else:
-                self.logger.debug (("ZookeeperAdapter::configure -- znode already exists: {}".format (self.path)))
-                self.zk.set (self.path, value=value.encode('utf-8'))
+                self.logger.debug (("ZookeeperAdapter::configure -- znode already exists: {}".format (path)))
+                self.zk.set (path, value=value.encode('utf-8'))
         
         except Exception as e:
             self.logger.debug ("ZookeeperAdapter::configure -- Exception: {}".format (e))
             traceback.print_exc()
             raise
 
-
-    def register_node (self, info):
-        """Add a znode, given the information"""	
-        try:
-            if info["role"] == 'pub':
-                znode = self.pubPath + "/" + info["name"] 
-                value = info["addr"] + ":" + str (info["port"])
-            elif info["role"] == 'sub':
-                znode = self.subPath + "/" + info["name"] 
-                value = info["addr"] + ":" + str (info["port"])
-            elif info["role"] == 'broker':
-                znode = self.brokerPath + "/" + info["name"] 
-                value = info["addr"] + ":" + str (info["port"])
-            # create the znode
-            if not self.zk.exists (znode):
-                self.logger.debug (("ZookeeperAdapter::add_node -- create znode: {}".format (znode)))
-                self.zk.create (znode, value=value.encode('utf-8') , ephemeral=True, makepath=True)
-            else:
-                self.logger.debug (("ZookeeperAdapter::add_node -- znode already exists: {}".format (znode)))
-                self.zk.set (znode, value=value.encode('utf-8'))
-                
-        except Exception as e:
-            self.logger.debug ("ZookeeperAdapter::add_node -- Exception: {}".format (e))
-            traceback.print_exc()
-            raise
-
-
-    def deregister_node (self, info):
-        """Delete a znode, given the information"""	
-        try:
-            if info["role"] == 'pub':
-                if self.zk.exists (self.pubPath):
-                    znode = self.pubPath + "/" + info["name"] 
-            elif info["role"] == 'sub':
-                if self.zk.exists (self.subPath):
-                    znode = self.subPath + "/" + info["name"] 
-            elif info["role"] == 'broker':
-                if self.zk.exists (self.brokerPath):
-                    znode = self.brokerPath + "/" + info["name"] 
-            # delete the znode
-            self.logger.debug (("ZookeeperAdapter::delete_node -- delete znode: {}".format (znode)))
-            self.zk.delete (znode)
-        
-        except Exception as e:
-            self.logger.debug ("ZookeeperAdapter::delete_node -- Exception: {}".format (e))
-            traceback.print_exc()
-            raise
-
-    
+  
     def election (self, path, leader_path):
         """Elect a leader for the first time"""
         try:

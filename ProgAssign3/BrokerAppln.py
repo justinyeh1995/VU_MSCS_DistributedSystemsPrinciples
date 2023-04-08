@@ -118,13 +118,6 @@ class PublisherAppln ():
       # dump our contents (debugging purposes)
       self.dump ()
 
-      # the primary discovery service is found in the configure() method, bad design, gg
-      #-------------------------------------------------
-      if self.lookup == "ViaBroker":  
-        self.mw_obj.first_watch(type="broker")
-        self.mw_obj.leader_watcher(type="broker")
-      #-------------------------------------------------
-
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("BrokerAppln::driver - register with the discovery service")
       result = self.mw_obj.register (self.name, self.topiclist)

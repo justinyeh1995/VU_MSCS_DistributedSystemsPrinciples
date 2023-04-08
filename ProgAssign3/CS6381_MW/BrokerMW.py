@@ -51,6 +51,8 @@ class BrokerMW ():
     self.poller = None # used to wait on incoming replies
     self.addr = None # our advertised IP address
     self.port = None # port num where we are going to publish our topics
+    self.name = None # our name (some unique name)
+    self.context = None # ZMQ context
     self.zk_adapter = None # handle to the ZK object
     self.disc_leader = None # the leader of the discovery service
     self.broker_leader = None # the leader of the broker service
@@ -69,10 +71,11 @@ class BrokerMW ():
       # First retrieve our advertised IP addr and the publication port num
       self.port = args.port
       self.addr = args.addr
+      self.name = args.name
       
       # Next get the ZMQ context
       self.logger.debug ("BrokerMW::configure - obtain ZMQ context")
-      context = zmq.Context ()  # returns a singleton object
+      self.context = zmq.Context ()  # returns a singleton object
 
       # get the ZMQ poller object
       self.logger.debug ("BrokerMW::configure - obtain the poller")
@@ -80,9 +83,9 @@ class BrokerMW ():
       
       # Now acquire the REQ and PUB sockets
       self.logger.debug ("BrokerMW::configure - obtain REQ and PUB sockets")
-      self.req = context.socket (zmq.REQ)
-      self.sub = context.socket (zmq.SUB)
-      self.pub = context.socket (zmq.PUB)
+      self.req = self.context.socket (zmq.REQ)
+      self.sub = self.context.socket (zmq.SUB)
+      self.pub = self.context.socket (zmq.PUB)
 
       #------------------------------------------------------------
       self.logger.debug ("BrokerMW::configure - obtain ZK adapter")
@@ -105,7 +108,7 @@ class BrokerMW ():
       # tcp:// followed by IP addr:port number.
       connect_str = "tcp://" + self.disc_leader
       self.req.connect (connect_str)
-      
+      self.req.setsockopt(zmq.RCVTIMEO, 1000) 
       # register the REQ socket for incoming events
       self.logger.debug ("BrokerMW::configure - register the REQ socket for incoming replies")
       self.poller.register (self.req, zmq.POLLIN)
@@ -134,6 +137,13 @@ class BrokerMW ():
         self.zk_adapter.init_zkclient ()
         #-----------------------------------------------------------
         self.zk_adapter.start ()
+        #-----------------------------------------------------------
+        print(self.zk_adapter.brokerPath)
+        print(self.name)
+        path = self.zk_adapter.brokerPath + "/" + self.name
+        self.zk_adapter.register_node (path, self.addr + ":" + str (self.port)) # create the necessary znode of this discovery node
+        #-----------------------------------------------------------
+    
       
       except Exception as e:
         traceback.print_exc()
@@ -152,49 +162,29 @@ class BrokerMW ():
     try:
       if type == "discovery":
         #--------------------------------------
-        self.req.close()
+        req_addr = self.req.getsockopt(zmq.LAST_ENDPOINT).decode('utf-8')
+        self.logger.debug ("BrokerMW::reconnect - disconnect from Discovery service at {}".format (req_addr))
         #--------------------------------------
+        self.poller.unregister (self.req)
         time.sleep(1)
+        #-------------------------------------- 
+        self.req.close()
+        self.logger.debug ("BrokerMW::reconnect - closed the REQ socket")
         #--------------------------------------
-        context = zmq.Context()
-        self.req = context.socket(zmq.REQ)
-        # Connet to the broker
-        #--------------------------------------
+        self.logger.debug ("BrokerMW::reconnect - obtain ZK context")
         data, stat = self.zk_adapter.zk.get(path) 
         conn_string = "tcp://" + data.decode('utf-8')
+        #-------------------------------------- 
+        self.req = self.context.socket(zmq.REQ)
         #--------------------------------------
-        self.logger.debug ("SubscriberMW::reconnect - connect to Discovery service at {}".format (conn_string))
+        self.logger.debug ("BrokerMW::reconnect - connect to Discovery service at {}".format (conn_string))
         self.req.connect(conn_string)
         #--------------------------------------
-        #if self.poller:
-        #  self.poller.unregister(self.req)
-        #--------------------------------------
+        self.logger.debug ("BrokerMW::reconnect - register the REQ socket for incoming replies")
+        
         self.poller.register (self.req, zmq.POLLIN)
+        #--------------------------------------
       
-      elif type == "broker":
-        #--------------------------------------
-        self.sub.close()
-        #--------------------------------------
-        time.sleep(1)
-        #--------------------------------------
-        context = zmq.Context()
-        self.sub = context.socket(zmq.SUB)
-        # Connet to the broker
-        #--------------------------------------
-        data, stat = self.zk_adapter.zk.get(path) 
-        conn_string = "tcp://" + data.decode('utf-8')
-        #--------------------------------------
-        self.logger.debug ("SubscriberMW::reconnect - connect to Discovery service at {}".format (conn_string))
-        self.sub.connect(conn_string)
-        #--------------------------------------
-        for topic in self.topiclist:
-          self.sub.setsockopt(zmq.SUBSCRIBE, topic.encode('utf-8'))
-        #--------------------------------------
-        if self.poller:
-          self.poller.unregister(self.sub)
-        #--------------------------------------
-        self.poller.register (self.sub, zmq.POLLIN)
-
     except Exception as e:
       traceback.print_exc()
       raise e
@@ -233,18 +223,20 @@ class BrokerMW ():
         @self.zk_adapter.zk.DataWatch(leader_path)
         def watch_node (data, stat, event):
           try:
-            """if the primary entity(broker/discovery service) goes down, elect a new one"""
-            self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
-            self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+            if data: 
+              """if the primary entity(broker/discovery service) goes down, elect a new one"""
+              self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+              self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
 
-            leader_addr = data.decode('utf-8')
-            self.update_leader(type, leader_addr)
-            self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-            self.reconnect(type, leader_path)
+              leader_addr = data.decode('utf-8')
+              self.update_leader(type, leader_addr)
+              self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+              if event == "CHANGED":
+                self.reconnect(type, leader_path)
           except Exception as e:
             traceback.print_exc()
             raise e
-            
+
       except Exception as e:
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
           traceback.print_exc()
@@ -392,10 +384,18 @@ class BrokerMW ():
 
       # now send this to our discovery service
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
-      self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+      last_point = self.req.getsockopt(zmq.LAST_ENDPOINT)
+      self.logger.debug ("SubscriberMW::lookup - last endpoint = {}".format(last_point))
 
-      infoList = self.event_loop()
-      pubList = infoList.publishers
+      try:
+        self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
+        infoList = self.event_loop()
+        pubList = infoList.publishers
+      except Exception as e:
+        self.logger.debug ("SubscriberMW::lookup - exception in send & recv")
+        self.reconnect(type="discovery", path=self.zk_adapter.discoveryLeaderPath)
+        return False
+      
 
       self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
 
@@ -421,16 +421,22 @@ class BrokerMW ():
 
     try:
       self.logger.debug ("BrokerMW::event_loop - run the event loop")
-
       while True:
         # poll for events. We give it an infinite timeout.
         # The return value is a socket to event mask mapping
-        events = dict (self.poller.poll ())
+        events = dict (self.poller.poll (timeout=1000)) # 1 second timeout
       
         # the only socket that should be enabled, if at all, is our REQ socket.
         if self.req in events:  # this is the only socket on which we should be receiving replies
           # handle the incoming reply and return the result
+          #if self.req.closed:
+          #  self.logger.debug ("BrokerMW::event_loop - req socket closed")
+          #  time.sleep(1)
+          #  continue
           return self.handle_reply ()
+        
+        #time.sleep(1)
+        #break
 
     except Exception as e:
       raise e
