@@ -354,9 +354,7 @@ class SubscriberMW ():
         pubList = infoList.publishers
       except:
         #self.logger.debug ("SubscriberMW::lookup - exception: {}".format (e))
-        print(self.req)
-        print(infoList)
-        self.logger.debug ("SubscriberMW::lookup - exception")
+        self.logger.debug ("SubscriberMW::lookup - exception happens but we will try again")
         self.reconnect(type="discovery", path=self.zk_adapter.discoveryLeaderPath)
         return False
  
