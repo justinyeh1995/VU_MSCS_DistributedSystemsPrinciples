@@ -409,15 +409,7 @@ class SubscriberMW ():
       
         # the only socket that should be enabled, if at all, is our REQ socket.
         if self.req in events:  # this is the only socket on which we should be receiving replies
-          # handle the incoming reply and return the result
-          if self.req.closed:
-            self.logger.debug ("BrokerMW::event_loop - req socket closed")
-            time.sleep(1)
-            continue
           return self.handle_reply ()
-
-        time.sleep(1)
-        break
 
     except Exception as e:
       traceback.print_exc()
