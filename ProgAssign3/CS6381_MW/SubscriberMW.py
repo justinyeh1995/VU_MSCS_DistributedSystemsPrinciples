@@ -249,8 +249,8 @@ class SubscriberMW ():
               leader_addr = data.decode('utf-8')
               self.update_leader(type, leader_addr)
               self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-              #if event:
-              #  self.reconnect(type, leader_path)
+              if event:
+                self.reconnect(type, leader_path)
           except Exception as e:
             traceback.print_exc()
             raise e

@@ -127,7 +127,9 @@ class PublisherAppln ():
 
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
-
+      
+      self.mw_obj.first_election(self.mw_obj.zk_adapter.brokerPath, self.mw_obj.zk_adapter.brokerLeaderPath)
+      self.mw_obj.on_leader_change(type="broker")
 
       while True:
         if self.mw_obj.lookup_topic (self.topiclist): # if lookup is successful

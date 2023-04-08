@@ -210,6 +210,49 @@ class BrokerMW ():
 
 
   ########################################
+  # elect a leader for the first time
+  ########################################
+
+  def first_election (self, path, leader_path):
+      """Elect a leader for the first time"""
+      try:
+          self.logger.debug ("DiscoveryMW::first_election -- electing leader in path: {}".format (path))
+          leader = self.zk_adapter.elect_leader (path, id=self.name)
+          leader_addr = self.zk_adapter.get_leader_addr (path, leader)
+          self.logger.debug ("ZookeeperAdapter::watch -- elected leader: {} & address is: {}".format (leader, leader_addr))
+          self.zk_adapter.set_leader (leader_path, leader_addr)
+          self.logger.debug ("DiscoveryMW::first_election -- set leader: {}".format (leader))
+          self.update_leader ("discovery", leader_addr) 
+
+      except Exception as e:
+          self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+          traceback.print_exc()
+          raise e
+
+
+  ########################################
+  # watch the discovery leader changes
+  ########################################
+  def on_leader_change(self, type="discovery"):
+    if type == "discovery":
+      path, leader_path = self.zk_adapter.discoveryPath, self.zk_adapter.discoveryLeaderPath
+    elif type == "broker":
+      path, leader_path = self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath
+    """subscribe on leader change"""
+    @self.zk_adapter.zk.ChildrenWatch(path)
+    def watch_node(children):
+      try:
+        self.logger.debug("DiscoveryMW::on_leader_change - invoked")
+        leader_addr = self.zk_adapter.election (path, leader_path)
+        self.logger.debug("DiscoveryMW::on_leader_change - leader: {}".format(leader_addr))
+        self.update_leader ("discovery", leader_addr)
+      
+      except Exception as e:
+          traceback.print_exc()
+          raise e
+
+          
+  ########################################
   # on leader change
   ########################################
   def leader_watcher (self, type="discovery"):
