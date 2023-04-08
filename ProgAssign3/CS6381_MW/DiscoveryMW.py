@@ -463,6 +463,7 @@ class DiscoveryMW ():
               topic_msg.publishers.append(info)
 
         elif self.dissemination == "ViaBroker": 
+          self.broker_leader_addr = self.zk_adapter.get_leader (self.zk_adapter.brokerLeaderPath)
           for name, detail in self.registry.items():
             if (detail["role"] == "broker" 
                 and detail["addr"] + ":" + str(detail["port"]) == self.broker_leader_addr):

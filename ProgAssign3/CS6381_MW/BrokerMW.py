@@ -448,10 +448,15 @@ class BrokerMW ():
       for topic in topiclist:
         self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
 
+      conn_pool = set()
       for info in pubList:
         connect_str = "tcp://" + info.addr + ":" + str(info.port)
-        self.sub.connect (connect_str)
-      
+        if connect_str in conn_pool:
+          continue
+        self.logger.debug("SubscriberMW::lookup_topic - connect to publisher: {}".format(connect_str))
+        conn_pool.add(connect_str)
+        self.sub.connect (connect_str) 
+
       return True
 
     except Exception as e:
@@ -473,6 +478,7 @@ class BrokerMW ():
         if self.req in events:  # this is the only socket on which we should be receiving replies
           return self.handle_reply ()
         
+        return None
 
     except Exception as e:
       raise e
@@ -521,7 +527,14 @@ class BrokerMW ():
   def disseminateViaBroker (self):
     try:
       self.logger.debug ("BrokerMW::subscribe")
-      message = self.sub.recv_string()
+      self.sub.setsockopt (zmq.RCVTIMEO, 1000) # 1 second timeout
+      
+      try:
+        message = self.sub.recv_string()
+      except:
+        self.logger.debug ("BrokerMW::disseminate - timeout - no message received - life is good")
+        return
+      
       self.logger.debug ("BrokerMW::disseminate - {}".format (message))
       self.pub.send_string (message)
 

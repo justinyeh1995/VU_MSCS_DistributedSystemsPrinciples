@@ -42,6 +42,7 @@ import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
 import traceback # for printing stack traces
+from zmq.error import ZMQError # for catching ZMQ errors
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -161,9 +162,8 @@ class SubscriberMW ():
         req_addr = self.req.getsockopt(zmq.LAST_ENDPOINT).decode('utf-8')
         self.logger.debug ("BrokerMW::reconnect - disconnect from Discovery service at {}".format (req_addr))
         self.logger.debug ("SubscriberMW::configure - reconnect to Discovery service")
-        time.sleep(1)
         #--------------------------------------
-        self.poller.unregister (self.req)
+        #self.poller.unregister (self.req)
         time.sleep(1)
         self.req.close()
         #--------------------------------------
@@ -243,8 +243,8 @@ class SubscriberMW ():
           try:
             if data:
               """if the primary entity(broker/discovery service) goes down, elect a new one"""
-              self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
-              self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+              self.logger.debug ("SubscriberMW::leader_watcher -- callback invoked")
+              self.logger.debug ("SubscriberMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
 
               leader_addr = data.decode('utf-8')
               self.update_leader(type, leader_addr)
@@ -352,12 +352,16 @@ class SubscriberMW ():
         self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
         infoList = self.event_loop()
         pubList = infoList.publishers
-      except Exception as e:
-        self.logger.debug ("SubscriberMW::lookup - exception in send & recv")
+      except:
+        #self.logger.debug ("SubscriberMW::lookup - exception: {}".format (e))
+        print(self.req)
+        print(infoList)
+        self.logger.debug ("SubscriberMW::lookup - exception")
         self.reconnect(type="discovery", path=self.zk_adapter.discoveryLeaderPath)
         return False
  
       self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
+      
 
       if not pubList:
           return False # return to Appln layer and lookup again
@@ -365,9 +369,17 @@ class SubscriberMW ():
       for topic in topiclist:
         self.sub.setsockopt(zmq.SUBSCRIBE, bytes(topic, 'utf-8'))
 
+      
+      conn_pool = set()
       for info in pubList:
         connect_str = "tcp://" + info.addr + ":" + str(info.port)
-        self.sub.connect (connect_str)
+        if connect_str in conn_pool:
+          continue
+        self.logger.debug("SubscriberMW::lookup_topic - connect to publisher: {}".format(connect_str))
+        conn_pool.add(connect_str)
+        self.sub.connect (connect_str) 
+      
+      #self.sub.setsockopt(zmq.RCVTIMEO, 1000) # 1 second timeout
       
       return True
 
@@ -382,8 +394,15 @@ class SubscriberMW ():
   def subscribe (self):
     try:
       self.logger.debug ("SubscriberMW::subscribe")
-      message = self.sub.recv_string()
-      topic, content, dissemTime = message.split(":")
+      
+      self.sub.setsockopt(zmq.RCVTIMEO, 1000) # 1 second timeout
+      
+      try:
+        message = self.sub.recv_string()
+        topic, content, dissemTime = message.split(":")
+      except:
+        self.logger.debug ("SubscriberMW::subscribe - timeout - likely no data - life is good...")
+        return
       
       #self.logger.debug ("Latency = {}".format (timeit.default_timer() - float(dissemTime)))
       self.logger.debug ("Latency = {}".format (1000*(time.monotonic() - float(dissemTime))))
@@ -411,6 +430,7 @@ class SubscriberMW ():
         if self.req in events:  # this is the only socket on which we should be receiving replies
           return self.handle_reply ()
 
+        return None
     except Exception as e:
       traceback.print_exc()
       raise e
