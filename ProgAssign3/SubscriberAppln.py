@@ -116,7 +116,7 @@ class SubscriberAppln ():
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("SubscriberAppln::driver - register with the discovery service")
-      while not result:
+      while True:
         self.logger.debug ("PublisherAppln::driver - registration failed, retrying")
         result = self.mw_obj.register (self.name, self.topiclist)
         if result:
