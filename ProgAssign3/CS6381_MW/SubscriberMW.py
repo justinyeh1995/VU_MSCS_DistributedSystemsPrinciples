@@ -357,6 +357,8 @@ class SubscriberMW ():
  
       self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
 
+      print (pubList)
+
       if not pubList:
           return False # return to Appln layer and lookup again
 
