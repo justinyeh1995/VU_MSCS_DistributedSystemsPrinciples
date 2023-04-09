@@ -131,14 +131,15 @@ class PublisherAppln ():
 
       # the primary discovery service is found in the configure() method, bad design, gg
       #-------------------------------------------------
-      if self.dissemination == "ViaBroker":  
-        self.mw_obj.first_watch(type="broker")
-        self.mw_obj.leader_watcher(type="broker")
-      #-------------------------------------------------
 
       # First ask our middleware to register ourselves with the discovery service
-      self.logger.debug ("PublisherAppln::driver - register with the discovery service")
-      result = self.mw_obj.register (self.name, self.topiclist)
+      self.logger.debug ("PublisherAppln::driver - register with the discovery service")      
+      while not result:
+        self.logger.debug ("PublisherAppln::driver - registration failed, retrying")
+        result = self.mw_obj.register (self.name, self.topiclist)
+        if result:
+          break
+        time.sleep (1)
       self.logger.debug ("PublisherAppln::driver - result of registration".format (result))
 
       # Now disseminate

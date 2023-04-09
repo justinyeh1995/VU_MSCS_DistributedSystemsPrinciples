@@ -159,8 +159,6 @@ class SubscriberMW ():
   def reconnect (self, type, path):
     try:
       if type == "discovery":
-        req_addr = self.req.getsockopt(zmq.LAST_ENDPOINT).decode('utf-8')
-        self.logger.debug ("BrokerMW::reconnect - disconnect from Discovery service at {}".format (req_addr))
         self.logger.debug ("SubscriberMW::configure - reconnect to Discovery service")
         #--------------------------------------
         #self.poller.unregister (self.req)
@@ -181,7 +179,7 @@ class SubscriberMW ():
         self.poller.register (self.req, zmq.POLLIN)
       
       elif type == "broker":
-        self.logger.debug ("SubscriberMW::configure - reconnect to Discovery service")
+        self.logger.debug ("SubscriberMW::configure - reconnect to Broker service")
         time.sleep(1)
         #--------------------------------------
         self.poller.unregister (self.sub)
@@ -196,7 +194,7 @@ class SubscriberMW ():
         data, stat = self.zk_adapter.zk.get(path) 
         conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
-        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.logger.debug ("SubscriberMW::configure - connect to Broker service at {}".format (conn_string))
         self.sub.connect(conn_string)
         #--------------------------------------
         for topic in self.topiclist:

@@ -233,17 +233,17 @@ class PublisherMW ():
             """if the primary entity(broker/discovery service) goes down, elect a new one"""
             self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
             self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
-
-            leader_addr = data.decode('utf-8')
-            self.update_leader(type, leader_addr)
-            self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-            if type == "discovery":
-              self.logger.debug ("PublisherMW::leader_watcher -- reconnect to the new discovery service")
-              self.reconnect(type, leader_path)
+            if data:
+              leader_addr = data.decode('utf-8')
+              self.update_leader(type, leader_addr)
+              self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+              if event == "CHANGED":
+                self.logger.debug ("PublisherMW::leader_watcher -- reconnect to the new discovery service")
+                self.reconnect(type, leader_path)
           except Exception as e:
             traceback.print_exc()
             raise e
-            
+
       except Exception as e:
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
           traceback.print_exc()
@@ -380,7 +380,7 @@ class PublisherMW ():
       while True:
         # poll for events. We give it an infinite timeout.
         # The return value is a socket to event mask mapping
-        events = dict (self.poller.poll ())
+        events = dict (self.poller.poll (timeout=1000)) # timeout in milliseconds
       
         # the only socket that should be enabled, if at all, is our REQ socket.
         if self.req in events:  # this is the only socket on which we should be receiving replies
