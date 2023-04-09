@@ -448,10 +448,11 @@ class DiscoveryMW ():
       topiclist = request.lookup_req.topiclist
       role = request.lookup_req.role
       # first build a IsReady message
-      self.logger.debug ("DiscoveryMW::lookup - populate the nested Lookup msg")
+      self.logger.debug ("DiscoveryMW::gen_lookup_resp - populate the nested Lookup msg")
       topic_msg = discovery_pb2.LookupPubByTopicResp ()  # allocate 
 
       if role == discovery_pb2.ROLE_SUBSCRIBER:
+        self.logger.debug ("DiscoveryMW::gen_lookup_resp - request from subscriber")
         if self.dissemination == "Direct":
           for name, detail in self.registry.items():
             if detail["role"] == "pub":
@@ -462,11 +463,14 @@ class DiscoveryMW ():
               info.port = detail["port"]
               topic_msg.publishers.append(info)
 
-        elif self.dissemination == "ViaBroker": 
+        else:
+          self.logger.debug ("DiscoveryMW::gen_lookup_resp - request from subscriber")
           self.broker_leader_addr = self.zk_adapter.get_leader (self.zk_adapter.brokerLeaderPath)
+          self.logger.debug ("DiscoveryMW::gen_lookup_resp - broker leader at {}".format(self.broker_leader_addr))
           for name, detail in self.registry.items():
             if (detail["role"] == "broker" 
                 and detail["addr"] + ":" + str(detail["port"]) == self.broker_leader_addr):
+              self.logger.debug ("DiscoveryMW::gen_lookup_resp - found broker leader")
               info = discovery_pb2.RegistrantInfo ()
               info.id = name
               info.addr = detail["addr"]
@@ -474,6 +478,7 @@ class DiscoveryMW ():
               topic_msg.publishers.append(info)
 
       elif role == discovery_pb2.ROLE_BOTH:
+        self.logger.debug ("DiscoveryMW::gen_lookup_resp - request from broker")
         for name, detail in self.registry.items():
           if detail["role"] == "pub": 
             info = discovery_pb2.RegistrantInfo ()
