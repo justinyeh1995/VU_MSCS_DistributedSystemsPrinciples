@@ -180,9 +180,7 @@ class SubscriberMW ():
       
       elif type == "broker":
         self.logger.debug ("SubscriberMW::configure - reconnect to Broker service")
-        time.sleep(1)
         #--------------------------------------
-        self.poller.unregister (self.sub)
         time.sleep(1)
         self.sub.close()
         #--------------------------------------
@@ -353,11 +351,11 @@ class SubscriberMW ():
       except:
         #self.logger.debug ("SubscriberMW::lookup - exception: {}".format (e))
         self.logger.debug ("SubscriberMW::lookup - exception happens but we will try again")
+        time.sleep(1)
         self.reconnect(type="discovery", path=self.zk_adapter.discoveryLeaderPath)
         return False
  
       self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
-      
 
       if not pubList:
           return False # return to Appln layer and lookup again

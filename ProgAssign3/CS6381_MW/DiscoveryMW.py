@@ -281,6 +281,38 @@ class DiscoveryMW ():
           raise e
     
 
+  ########################################
+  # on leader change
+  ########################################
+  def leader_watcher (self, type="discovery"):
+      """watch the leader znode"""
+      if type == "discovery":
+        leader_path = self.zk_adapter.discoveryLeaderPath
+      elif type == "broker":
+        leader_path = self.zk_adapter.brokerLeaderPath
+      
+      try:
+        @self.zk_adapter.zk.DataWatch(leader_path)
+        def watch_node (data, stat, event):
+          try:
+            if data: 
+              """if the primary entity(broker/discovery service) goes down, elect a new one"""
+              self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
+              self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+
+              leader_addr = data.decode('utf-8')
+              self.update_leader(type, leader_addr)
+              self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+              if event == "CHANGED":
+                self.reconnect(type, leader_path)
+          except Exception as e:
+            traceback.print_exc()
+            raise e
+
+      except Exception as e:
+          self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
+          traceback.print_exc()
+          raise e 
   #------------------------------------------------------------------------------------- 
 
   ######################
@@ -520,7 +552,7 @@ class DiscoveryMW ():
       self.logger.debug ("DiscoveryMW::event_loop - run the event loop")
 
       while True:
-        events = dict(self.poller.poll())
+        events = dict(self.poller.poll(timeout=1000)) # poll for 1 second
 
         if self.rep in events:
           # the only socket that should be enabled, if at all, is our REQ socket.
