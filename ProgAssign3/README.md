@@ -33,9 +33,9 @@ in the zkCli, run
 deleteall /
 ```
 
-be patient & wait a bit longer before all things are stable.
+Be patient & wait a bit before all zkServer gets stable.`
 
-go ahead & get back to mininet cli
+Switch back to the mininet cli
 
 ## Run Scripts
 ```sh=
