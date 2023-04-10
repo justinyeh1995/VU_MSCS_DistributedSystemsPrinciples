@@ -24,21 +24,14 @@
 # (4) It must do the actual dissemination activity of the topic data when instructed by the 
 
 # import the needed packages
-import os     # for OS functions
 import sys    # for syspath and system exception
 import time   # for sleep
-import timeit
-import argparse # for argument parsing
-import configparser # for configuration parsing
-import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
-import random # for random number generation
 import traceback
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
 from CS6381_MW import ZookeeperAPI
-from kazoo.exceptions import ZookeeperError
 
 
 # import any other packages you need.

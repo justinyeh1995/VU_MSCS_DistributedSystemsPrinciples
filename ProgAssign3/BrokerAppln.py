@@ -134,7 +134,7 @@ class PublisherAppln ():
       while True:
         if self.mw_obj.lookup_topic (self.topiclist): # if lookup is successful
           self.mw_obj.disseminateViaBroker()
-
+        time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
         
     except Exception as e:
       raise e

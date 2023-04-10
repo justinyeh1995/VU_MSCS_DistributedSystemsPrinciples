@@ -25,8 +25,8 @@ class ZKAdapter():
         #---------------------------------------------------
         self.leader = False
         #---------------------------------------------------
-        self.discoveryLeaderPath = self.discoveryPath + "/leader"
-        self.brokerLeaderPath = self.brokerPath + "/leader"
+        self.discoveryLeaderPath = self.root_path + "/discoveryleader"
+        self.brokerLeaderPath = self.root_path + "/brokerleader"
 
 
     # Debugging: Dump the contents

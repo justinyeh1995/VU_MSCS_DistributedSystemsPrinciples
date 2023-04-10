@@ -50,7 +50,7 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import random # needed in the topic selection using random numbers
-
+import signal # for signal handling
 
 # Import our topic selector. Feel free to use alternate way to
 # get your topics of interest
@@ -58,9 +58,6 @@ from topic_selector import TopicSelector
 
 # Now import our CS6381 Middleware
 from CS6381_MW.PublisherMW import PublisherMW
-
-# import any other packages you need.
-from enum import Enum  # for an enumeration we are using to describe what state we are in
 
 ##################################
 #       PublisherAppln class
@@ -152,6 +149,8 @@ class PublisherAppln ():
         for topic in self.topiclist:
           dissemination_data = topic + ":" + ts.gen_publication (topic) 
           self.mw_obj.disseminate (dissemination_data)
+          signal.signal(signal.SIGINT, self.my_handler) # register our signal handler
+          signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
         # avoid transmission too frequently
         time.sleep (1)
 
@@ -164,7 +163,17 @@ class PublisherAppln ():
     except Exception as e:
       raise e
 
+
+  ####################
+  # my signal handler
+  ####################
+  def my_handler (self, signum, frame):
+    ''' Signal handler '''
+    self.logger.debug ("PublisherAppln::my_handler - caught signal {}".format (signum))
+    self.mw_obj.deregister (self.name)
+    sys.exit (0)
  
+
   ########################################
   # dump the contents of the object 
   ########################################
@@ -213,7 +222,7 @@ def parseCmdLineArgs ():
   
   parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=1, help="Number of topics to publish, currently restricted to max of 9")
 
-  parser.add_argument ("-f", "--frequency", type=int,default=1, help="Rate at which topics disseminated: default once a second - use integers")
+  parser.add_argument ("-f", "--frequency", type=float ,default=0.25, help="Rate at which topics disseminated: default once a second - use integers")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   #parser.add_argument ("-l", "--loglevel", type=int, default=logging.INFO, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 20=logging.INFO")
@@ -247,7 +256,6 @@ def main ():
 
     # configure the object
     pub_app.configure (args)
-
     # now invoke the driver program
     pub_app.driver ()
 

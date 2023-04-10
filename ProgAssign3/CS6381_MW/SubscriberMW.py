@@ -159,7 +159,7 @@ class SubscriberMW ():
   def reconnect (self, type, path):
     try:
       if type == "discovery":
-        self.logger.debug ("SubscriberMW::configure - reconnect to Discovery service")
+        self.logger.debug ("SubscriberMW::reconnect - reconnect to Discovery service")
         #--------------------------------------
         #self.poller.unregister (self.req)
         time.sleep(1)
@@ -173,13 +173,13 @@ class SubscriberMW ():
         data, stat = self.zk_adapter.zk.get(path) 
         conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
-        self.logger.debug ("SubscriberMW::configure - connect to Discovery service at {}".format (conn_string))
+        self.logger.debug ("SubscriberMW::reconnect - connect to Discovery service at {}".format (conn_string))
         self.req.connect(conn_string)
         #--------------------------------------
         self.poller.register (self.req, zmq.POLLIN)
       
       elif type == "broker":
-        self.logger.debug ("SubscriberMW::configure - reconnect to Broker service")
+        self.logger.debug ("SubscriberMW::reconnect - reconnect to Broker service")
         #--------------------------------------
         time.sleep(1)
         self.sub.close()
@@ -192,7 +192,7 @@ class SubscriberMW ():
         data, stat = self.zk_adapter.zk.get(path) 
         conn_string = "tcp://" + data.decode('utf-8')
         #--------------------------------------
-        self.logger.debug ("SubscriberMW::configure - connect to Broker service at {}".format (conn_string))
+        self.logger.debug ("SubscriberMW::reconnect - connect to Broker service at {}".format (conn_string))
         self.sub.connect(conn_string)
         #--------------------------------------
         for topic in self.topiclist:
@@ -245,7 +245,7 @@ class SubscriberMW ():
               leader_addr = data.decode('utf-8')
               self.update_leader(type, leader_addr)
               self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
-              if event:
+              if event == "CHANGED":
                 self.reconnect(type, leader_path)
           except Exception as e:
             traceback.print_exc()
@@ -345,6 +345,8 @@ class SubscriberMW ():
       self.logger.debug ("SubscriberMW::lookup - send stringified buffer to Discovery service")
 
       try:
+        curr_leader = self.zk_adapter.get_leader(self.zk_adapter.discoveryLeaderPath)
+        self.logger.debug ("SubscriberMW::lookup - current discovery leader is {}".format (curr_leader))
         self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
         infoList = self.event_loop()
         pubList = infoList.publishers
@@ -357,7 +359,7 @@ class SubscriberMW ():
  
       self.logger.debug ("SubscriberMW::lookup - received {} publishers".format (len(pubList)))
 
-      print (pubList)
+      self.logger.debug (pubList)
 
       if not pubList:
           return False # return to Appln layer and lookup again

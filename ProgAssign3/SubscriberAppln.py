@@ -33,7 +33,7 @@ import time   # for sleep
 import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
-
+import signal # for signal handling
 
 # Import our topic selector. Feel free to use alternate way to
 # get your topics of interest
@@ -133,11 +133,21 @@ class SubscriberAppln ():
           if self.mw_obj.lookup_topic (self.topiclist): # if lookup is successful
             # pass each topic to mw
             self.mw_obj.subscribe()
-
-      #self.mw_obj.event_loop()  
+          signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
 
     except Exception as e:
       raise e
+
+
+  ####################
+  # my signal handler
+  ####################
+  def my_handler (self, signum, frame):
+    ''' Signal handler '''
+    self.logger.debug ("PublisherAppln::my_handler - caught signal {}".format (signum))
+    self.mw_obj.deregister (self.name)
+    sys.exit (0)
+ 
 
   ########################################
   # dump the contents of the object 
@@ -217,6 +227,7 @@ def main ():
     # configure the object
     sub_app.configure (args)
 
+    time.sleep (10) # sleep for 10 seconds to allow the publisher to come up
     # now invoke the driver program
     sub_app.driver ()
 

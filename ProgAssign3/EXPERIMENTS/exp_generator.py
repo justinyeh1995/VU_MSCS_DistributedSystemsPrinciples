@@ -258,7 +258,13 @@ class ExperimentGenerator ():
     # entity in our system, which otherwise would have to be done
     #manually
     with open (self.script_file, "w") as f:
-      cmdline = "h1 /home/justinyeh/Apps/zookeeper/bin/zkServer.sh start-foreground > zk1.out 2>&1 &\n"
+      cmdline = "h1 rm -rf /home/justinyeh1995/Apps/zookeeper/data/version-2\n"
+      f.write(cmdline)
+
+      cmdline = "h1 rm -rf /home/justinyeh1995/Apps/zookeeper/data-log/version-2\n"
+      f.write(cmdline)
+
+      cmdline = "h1 /home/justinyeh1995/Apps/zookeeper/bin/zkServer.sh start-foreground > zk1.out 2>&1 &\n"
       f.write(cmdline)
 
       # Let us first generate all the commands to run the dictionary DHT nodes
@@ -273,11 +279,8 @@ class ExperimentGenerator ():
         for nested_dict in host_list:
           cmdline = host + " python3 DiscoveryAppln.py " + \
             "-n " + nested_dict["id"]  + " " + \
-            "-j " + self.json_file + " " + \
+            "-a " + str(nested_dict["IP"]) + " " + \
             "-p " + str(nested_dict["port"]) + " " + \
-            "-pp " + str(nested_dict["port"]+1111) + " " + \
-            "-P " + str(self.num_pub) + " " + \
-            "-S " + str(self.num_sub) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
           f.write (cmdline)
 
@@ -301,11 +304,28 @@ class ExperimentGenerator ():
             "-n " + nested_dict["id"]  + " " + \
             "-a " + str(nested_dict["IP"]) + " " + \
             "-p " + str(nested_dict["port"]) + " " + \
-            "-T " + str(num_topics) + " " + \
             "-f " + str(frequency) + " " + \
             "-i " + str(iterations) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
           f.write (cmdline)
+
+
+      # Do similar things with brokers. Here I am suggesting that we pass
+      # the same JSON file to broker and then it decides which discovery service
+      # to use from among all the nodes (pick at random) or for experiments
+      # choose one by one.  So we remove the "-d <discovery details>" and instead
+      # add "-j <json>"
+      for i in range (self.num_mn_nodes):
+        host = "h" + str (i+1)
+        host_list = self.broker_dict[host]
+        for nested_dict in host_list:
+          cmdline = host + " python3 BrokerAppln.py " + \
+            "-n " + nested_dict["id"]  + " " + \
+            "-a " + str(nested_dict["IP"]) + " " + \
+            "-p " + str(nested_dict["port"]) + " " + \
+            "> " + nested_dict["id"] + ".out 2>&1 &\n"
+          f.write (cmdline)
+
 
       # Do similar things with subscribers. Here I am suggesting that we pass
       # the same JSON file to subscriber and then it decides which discovery service
@@ -327,23 +347,6 @@ class ExperimentGenerator ():
             "-T " + str(num_topics) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
           f.write (cmdline)
-
-      # Do similar things with brokers. Here I am suggesting that we pass
-      # the same JSON file to broker and then it decides which discovery service
-      # to use from among all the nodes (pick at random) or for experiments
-      # choose one by one.  So we remove the "-d <discovery details>" and instead
-      # add "-j <json>"
-      for i in range (self.num_mn_nodes):
-        host = "h" + str (i+1)
-        host_list = self.broker_dict[host]
-        for nested_dict in host_list:
-          cmdline = host + " python3 BrokerAppln.py " + \
-            "-n " + nested_dict["id"]  + " " + \
-            "-a " + str(nested_dict["IP"]) + " " + \
-            "-p " + str(nested_dict["port"]) + " " + \
-            "> " + nested_dict["id"] + ".out 2>&1 &\n"
-          f.write (cmdline)
-
       
     f.close ()
           
