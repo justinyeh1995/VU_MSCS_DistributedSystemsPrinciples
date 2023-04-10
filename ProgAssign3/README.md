@@ -33,6 +33,8 @@ in the zkCli, run
 deleteall /
 ```
 
+be patient & wait a bit longer before all things are stable.
+
 go ahead & get back to mininet cli
 
 ## Run Scripts

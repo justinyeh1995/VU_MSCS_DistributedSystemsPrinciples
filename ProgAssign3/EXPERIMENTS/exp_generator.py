@@ -258,14 +258,14 @@ class ExperimentGenerator ():
     # entity in our system, which otherwise would have to be done
     #manually
     with open (self.script_file, "w") as f:
-      cmdline = "h1 rm -rf /home/justinyeh1995/Apps/zookeeper/data/version-2\n"
-      f.write(cmdline)
+      #cmdline = "h1 rm -rf /home/justinyeh1995/Apps/zookeeper/data/version-2\n"
+      #f.write(cmdline)
 
-      cmdline = "h1 rm -rf /home/justinyeh1995/Apps/zookeeper/data-log/version-2\n"
-      f.write(cmdline)
+      #cmdline = "h1 rm -rf /home/justinyeh1995/Apps/zookeeper/data-log/version-2\n"
+      #f.write(cmdline)
 
-      cmdline = "h1 /home/justinyeh1995/Apps/zookeeper/bin/zkServer.sh start-foreground > zk1.out 2>&1 &\n"
-      f.write(cmdline)
+      #cmdline = "h1 /home/justinyeh1995/Apps/zookeeper/bin/zkServer.sh start-foreground > zk1.out 2>&1 &\n"
+      #f.write(cmdline)
 
       # Let us first generate all the commands to run the dictionary DHT nodes
       # I am thinking that because we now have multiple Discovery instances
