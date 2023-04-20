@@ -116,12 +116,15 @@ class SubscriberAppln ():
 
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("SubscriberAppln::driver - register with the discovery service")
+      start = time.monotonic()
       while True:
-        self.logger.debug ("PublisherAppln::driver - registration failed, retrying")
         result = self.mw_obj.register (self.name, self.topiclist)
+        end = time.monotonic()
         if result:
           break
+        self.logger.debug ("SubscriberAppln::driver - registration failed")
         time.sleep (1)
+      self.logger.debug ("SubscriberAppln::driver - registration successful, took {} seconds".format (end - start))
       self.logger.debug ("SubscriberAppln::driver - result of registration".format (result))
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
@@ -130,9 +133,15 @@ class SubscriberAppln ():
       #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
 
       while True:
-          if self.mw_obj.lookup_topic (self.topiclist): # if lookup is successful
+          start = time.monotonic()
+          while True:
+            results = self.mw_obj.lookup_topic (self.topiclist) # if lookup is successful
             # pass each topic to mw
-            self.mw_obj.subscribe()
+            end = time.monotonic()
+            if results:
+              break
+          self.logger.debug ("SubscriberAppln::driver - look up successful, took {} seconds".format (end - start))
+          self.mw_obj.subscribe()
           signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
 
     except Exception as e:
