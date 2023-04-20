@@ -21,6 +21,16 @@ class ZKAdapter():
         self.discoveryPath = self.root_path + "/discovery" # refers to the znode path being manipulated
         self.brokerPath = self.root_path + "/broker"  # refers to the znode path being manipulated
         #---------------------------------------------------
+        self.zone1Path = self.root_path + "/zone1borkers"  # refers to the znode path being manipulated
+        self.zone2Path = self.root_path + "/zone2borkers"  # refers to the znode path being manipulated
+        self.zone3Path = self.root_path + "/zone3borkers"  # refers to the znode path being manipulated
+        #---------------------------------------------------
+        self.zone1leaderPath = self.root_path + "/zone1leader"  # refers to the znode path being manipulated
+        self.zone2leaderPath = self.root_path + "/zone2leader"  # refers to the znode path being manipulated
+        self.zone3leaderPath = self.root_path + "/zone3leader"  # refers to the znode path being manipulated
+        #---------------------------------------------------
+        self.topicPath = self.root_path + "/topic"  # refers to the znode path being manipulated
+        #---------------------------------------------------
         self.path = self.discoveryPath + "/" + self.name # refers to the znode path where this node is registered
         #---------------------------------------------------
         self.leader = False

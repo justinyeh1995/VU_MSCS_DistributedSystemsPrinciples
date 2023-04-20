@@ -56,6 +56,7 @@ class BrokerMW ():
     self.zk_adapter = None # handle to the ZK object
     self.disc_leader = None # the leader of the discovery service
     self.broker_leader = None # the leader of the broker service
+    self.zone = None # the zone we are in
     
 
   ########################################
@@ -138,9 +139,12 @@ class BrokerMW ():
         #-----------------------------------------------------------
         self.zk_adapter.start ()
         #-----------------------------------------------------------
-        print(self.zk_adapter.brokerPath)
+        # query suitable zone
+        zone_num = self.query_zone()
+        self.zone = zone_num
+        #-----------------------------------------------------------
         print(self.name)
-        path = self.zk_adapter.brokerPath + "/" + self.name
+        path = self.get_zone_path(zone_num) + "/" + self.name
         self.zk_adapter.register_node (path, self.addr + ":" + str (self.port)) # create the necessary znode of this discovery node
         #-----------------------------------------------------------
     
@@ -285,7 +289,46 @@ class BrokerMW ():
           traceback.print_exc()
           raise e 
 
+  #----------------------------------------
 
+  ########################################
+  # load balancing policy
+  # deicde belonging zone
+  ########################################
+  def query_zone(self):
+    """query the zone of a topic"""
+    try:
+      self.logger.debug("BrokerMW::query_zone - invoked")
+      zone = None
+      # check number of brokers in each zone
+      zone1 = self.zk_adapter.zk.get_children(self.zk_adapter.zone1Path)
+      zone2 = self.zk_adapter.zk.get_children(self.zk_adapter.zone2Path)
+      zone3 = self.zk_adapter.zk.get_children(self.zk_adapter.zone3Path)
+      zone = sorted(zip([1,2,3],[len(zone1), len(zone2), len(zone3)]), key=lambda x: x[1])[0][0] # sort by number of brokers in each zone
+      return zone
+
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+
+  
+  ########################################
+  # get zone path
+  ########################################
+  def get_zone_path(self, zone):
+    """get the path of a zone"""
+    try:
+      self.logger.debug("BrokerMW::get_zone_path - invoked")
+      if zone == 1:
+        return self.zk_adapter.zone1Path
+      elif zone == 2:
+        return self.zk_adapter.zone2Path
+      elif zone == 3:
+        return self.zk_adapter.zone3Path
+
+    except Exception as e:
+      traceback.print_exc()
+      raise e
   #----------------------------------------
 
   ########################################
