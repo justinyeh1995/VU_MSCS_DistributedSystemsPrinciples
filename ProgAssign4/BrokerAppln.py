@@ -41,7 +41,7 @@ from enum import Enum  # for an enumeration we are using to describe what state 
 ##################################
 #       PublisherAppln class
 ##################################
-class PublisherAppln ():
+class BrokerAppln ():
 
   # these are the states through which our publisher appln object goes thru.
   # We maintain the state so we know where we are in the lifecycle and then
@@ -221,7 +221,7 @@ def main ():
 
     # Obtain a publisher application
     logger.debug ("Main: obtain the object")
-    pub_app = PublisherAppln (logger)
+    pub_app = BrokerAppln (logger)
 
     # configure the object
     pub_app.configure (args)
