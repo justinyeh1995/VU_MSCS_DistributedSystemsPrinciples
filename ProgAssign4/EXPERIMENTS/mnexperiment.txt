@@ -1,0 +1,75 @@
+h3 python3 DiscoveryAppln.py -n disc5 -a 10.0.0.3 -p 5555 > disc5.out 2>&1 &
+h5 python3 DiscoveryAppln.py -n disc4 -a 10.0.0.5 -p 5555 > disc4.out 2>&1 &
+h6 python3 DiscoveryAppln.py -n disc9 -a 10.0.0.6 -p 5555 > disc9.out 2>&1 &
+h8 python3 DiscoveryAppln.py -n disc1 -a 10.0.0.8 -p 5555 > disc1.out 2>&1 &
+h8 python3 DiscoveryAppln.py -n disc7 -a 10.0.0.8 -p 5556 > disc7.out 2>&1 &
+h8 python3 DiscoveryAppln.py -n disc8 -a 10.0.0.8 -p 5557 > disc8.out 2>&1 &
+h12 python3 DiscoveryAppln.py -n disc6 -a 10.0.0.12 -p 5555 > disc6.out 2>&1 &
+h13 python3 DiscoveryAppln.py -n disc2 -a 10.0.0.13 -p 5555 > disc2.out 2>&1 &
+h18 python3 DiscoveryAppln.py -n disc3 -a 10.0.0.18 -p 5555 > disc3.out 2>&1 &
+h19 python3 DiscoveryAppln.py -n disc10 -a 10.0.0.19 -p 5555 > disc10.out 2>&1 &
+h1 python3 PublisherAppln.py -n pub10 -a 10.0.0.1 -p 7777 -f 0.5 -i 1000 > pub10.out 2>&1 &
+h1 python3 PublisherAppln.py -n pub16 -a 10.0.0.1 -p 7776 -f 0.25 -i 2000 > pub16.out 2>&1 &
+h2 python3 PublisherAppln.py -n pub6 -a 10.0.0.2 -p 7777 -f 2 -i 2000 > pub6.out 2>&1 &
+h2 python3 PublisherAppln.py -n pub7 -a 10.0.0.2 -p 7776 -f 2 -i 3000 > pub7.out 2>&1 &
+h2 python3 PublisherAppln.py -n pub8 -a 10.0.0.2 -p 7775 -f 3 -i 2000 > pub8.out 2>&1 &
+h2 python3 PublisherAppln.py -n pub12 -a 10.0.0.2 -p 7774 -f 0.5 -i 1000 > pub12.out 2>&1 &
+h2 python3 PublisherAppln.py -n pub25 -a 10.0.0.2 -p 7773 -f 0.25 -i 2000 > pub25.out 2>&1 &
+h3 python3 PublisherAppln.py -n pub1 -a 10.0.0.3 -p 7777 -f 0.5 -i 1000 > pub1.out 2>&1 &
+h3 python3 PublisherAppln.py -n pub2 -a 10.0.0.3 -p 7776 -f 0.5 -i 2000 > pub2.out 2>&1 &
+h3 python3 PublisherAppln.py -n pub24 -a 10.0.0.3 -p 7775 -f 2 -i 2000 > pub24.out 2>&1 &
+h4 python3 PublisherAppln.py -n pub17 -a 10.0.0.4 -p 7777 -f 0.75 -i 2000 > pub17.out 2>&1 &
+h5 python3 PublisherAppln.py -n pub21 -a 10.0.0.5 -p 7777 -f 3 -i 2000 > pub21.out 2>&1 &
+h6 python3 PublisherAppln.py -n pub29 -a 10.0.0.6 -p 7777 -f 4 -i 2000 > pub29.out 2>&1 &
+h7 python3 PublisherAppln.py -n pub26 -a 10.0.0.7 -p 7777 -f 1 -i 3000 > pub26.out 2>&1 &
+h8 python3 PublisherAppln.py -n pub23 -a 10.0.0.8 -p 7777 -f 0.25 -i 2000 > pub23.out 2>&1 &
+h9 python3 PublisherAppln.py -n pub13 -a 10.0.0.9 -p 7777 -f 0.5 -i 2000 > pub13.out 2>&1 &
+h9 python3 PublisherAppln.py -n pub18 -a 10.0.0.9 -p 7776 -f 2 -i 2000 > pub18.out 2>&1 &
+h11 python3 PublisherAppln.py -n pub22 -a 10.0.0.11 -p 7777 -f 1 -i 2000 > pub22.out 2>&1 &
+h11 python3 PublisherAppln.py -n pub30 -a 10.0.0.11 -p 7776 -f 0.25 -i 3000 > pub30.out 2>&1 &
+h12 python3 PublisherAppln.py -n pub4 -a 10.0.0.12 -p 7777 -f 1 -i 3000 > pub4.out 2>&1 &
+h12 python3 PublisherAppln.py -n pub9 -a 10.0.0.12 -p 7776 -f 2 -i 1000 > pub9.out 2>&1 &
+h13 python3 PublisherAppln.py -n pub15 -a 10.0.0.13 -p 7777 -f 0.75 -i 3000 > pub15.out 2>&1 &
+h15 python3 PublisherAppln.py -n pub3 -a 10.0.0.15 -p 7777 -f 0.5 -i 1000 > pub3.out 2>&1 &
+h15 python3 PublisherAppln.py -n pub11 -a 10.0.0.15 -p 7776 -f 4 -i 1000 > pub11.out 2>&1 &
+h16 python3 PublisherAppln.py -n pub5 -a 10.0.0.16 -p 7777 -f 0.75 -i 3000 > pub5.out 2>&1 &
+h17 python3 PublisherAppln.py -n pub14 -a 10.0.0.17 -p 7777 -f 0.75 -i 3000 > pub14.out 2>&1 &
+h17 python3 PublisherAppln.py -n pub20 -a 10.0.0.17 -p 7776 -f 3 -i 1000 > pub20.out 2>&1 &
+h17 python3 PublisherAppln.py -n pub27 -a 10.0.0.17 -p 7775 -f 1 -i 1000 > pub27.out 2>&1 &
+h18 python3 PublisherAppln.py -n pub19 -a 10.0.0.18 -p 7777 -f 3 -i 3000 > pub19.out 2>&1 &
+h18 python3 PublisherAppln.py -n pub28 -a 10.0.0.18 -p 7776 -f 1 -i 1000 > pub28.out 2>&1 &
+h1 python3 BrokerAppln.py -n broker5 -a 10.0.0.1 -p 7778 > broker5.out 2>&1 &
+h11 python3 BrokerAppln.py -n broker3 -a 10.0.0.11 -p 7778 > broker3.out 2>&1 &
+h18 python3 BrokerAppln.py -n broker1 -a 10.0.0.18 -p 7778 > broker1.out 2>&1 &
+h19 python3 BrokerAppln.py -n broker2 -a 10.0.0.19 -p 7778 > broker2.out 2>&1 &
+h20 python3 BrokerAppln.py -n broker4 -a 10.0.0.20 -p 7778 > broker4.out 2>&1 &
+h2 python3 SubscriberAppln.py -n sub8 -T 9 > sub8.out 2>&1 &
+h2 python3 SubscriberAppln.py -n sub16 -T 9 > sub16.out 2>&1 &
+h3 python3 SubscriberAppln.py -n sub25 -T 9 > sub25.out 2>&1 &
+h4 python3 SubscriberAppln.py -n sub11 -T 9 > sub11.out 2>&1 &
+h5 python3 SubscriberAppln.py -n sub9 -T 9 > sub9.out 2>&1 &
+h6 python3 SubscriberAppln.py -n sub1 -T 9 > sub1.out 2>&1 &
+h7 python3 SubscriberAppln.py -n sub12 -T 9 > sub12.out 2>&1 &
+h8 python3 SubscriberAppln.py -n sub3 -T 9 > sub3.out 2>&1 &
+h8 python3 SubscriberAppln.py -n sub4 -T 9 > sub4.out 2>&1 &
+h8 python3 SubscriberAppln.py -n sub6 -T 9 > sub6.out 2>&1 &
+h8 python3 SubscriberAppln.py -n sub21 -T 9 > sub21.out 2>&1 &
+h10 python3 SubscriberAppln.py -n sub20 -T 9 > sub20.out 2>&1 &
+h10 python3 SubscriberAppln.py -n sub23 -T 9 > sub23.out 2>&1 &
+h11 python3 SubscriberAppln.py -n sub14 -T 9 > sub14.out 2>&1 &
+h11 python3 SubscriberAppln.py -n sub24 -T 9 > sub24.out 2>&1 &
+h12 python3 SubscriberAppln.py -n sub7 -T 9 > sub7.out 2>&1 &
+h12 python3 SubscriberAppln.py -n sub15 -T 9 > sub15.out 2>&1 &
+h13 python3 SubscriberAppln.py -n sub22 -T 9 > sub22.out 2>&1 &
+h13 python3 SubscriberAppln.py -n sub28 -T 9 > sub28.out 2>&1 &
+h15 python3 SubscriberAppln.py -n sub18 -T 9 > sub18.out 2>&1 &
+h16 python3 SubscriberAppln.py -n sub17 -T 9 > sub17.out 2>&1 &
+h16 python3 SubscriberAppln.py -n sub26 -T 9 > sub26.out 2>&1 &
+h17 python3 SubscriberAppln.py -n sub5 -T 9 > sub5.out 2>&1 &
+h17 python3 SubscriberAppln.py -n sub29 -T 9 > sub29.out 2>&1 &
+h18 python3 SubscriberAppln.py -n sub13 -T 9 > sub13.out 2>&1 &
+h19 python3 SubscriberAppln.py -n sub10 -T 9 > sub10.out 2>&1 &
+h19 python3 SubscriberAppln.py -n sub27 -T 9 > sub27.out 2>&1 &
+h20 python3 SubscriberAppln.py -n sub2 -T 9 > sub2.out 2>&1 &
+h20 python3 SubscriberAppln.py -n sub19 -T 9 > sub19.out 2>&1 &
+h20 python3 SubscriberAppln.py -n sub30 -T 9 > sub30.out 2>&1 &
