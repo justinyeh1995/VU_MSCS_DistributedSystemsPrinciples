@@ -139,3 +139,6 @@ dmypy.json
 
 # ignore test folder
 SkeletonCode_test/
+
+# zip file
+*.zip
