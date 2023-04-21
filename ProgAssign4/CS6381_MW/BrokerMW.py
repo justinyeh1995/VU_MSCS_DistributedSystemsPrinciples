@@ -57,6 +57,7 @@ class BrokerMW ():
     self.disc_leader = None # the leader of the discovery service
     self.broker_leader = None # the leader of the broker service
     self.zone = None # the zone we are in
+    self.broker_leader_path = None # the path to the broker leader
     
 
   ########################################
@@ -201,7 +202,7 @@ class BrokerMW ():
     if type == "discovery":
       leader_path = self.zk_adapter.discoveryLeaderPath
     elif type == "broker":
-      leader_path = self.zk_adapter.brokerLeaderPath
+      leader_path = self.get_zone_leader_path(self.zone)
     
     try:
       leader_addr = self.zk_adapter.get_leader(leader_path)
@@ -217,8 +218,12 @@ class BrokerMW ():
   # elect a leader for the first time
   ########################################
 
-  def first_election (self, path, leader_path):
+  def first_election (self, type="discovery"):
       """Elect a leader for the first time"""
+      if type == "discovery":
+        path, leader_path = self.zk_adapter.discoveryPath, self.zk_adapter.discoveryLeaderPath
+      elif type == "broker":
+        path, leader_path = self.get_zone_path (self.zone), self.get_zone_leader_path (self.zone)
       try:
           self.logger.debug ("DiscoveryMW::first_election -- electing leader in path: {}".format (path))
           leader = self.zk_adapter.elect_leader (path, id=self.name)
@@ -241,7 +246,7 @@ class BrokerMW ():
     if type == "discovery":
       path, leader_path = self.zk_adapter.discoveryPath, self.zk_adapter.discoveryLeaderPath
     elif type == "broker":
-      path, leader_path = self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath
+      path, leader_path = self.get_zone_path (self.zone), self.get_zone_leader_path (self.zone)
     """subscribe on leader change"""
     @self.zk_adapter.zk.ChildrenWatch(path)
     def watch_node(children):
@@ -264,7 +269,7 @@ class BrokerMW ():
       if type == "discovery":
         leader_path = self.zk_adapter.discoveryLeaderPath
       elif type == "broker":
-        leader_path = self.zk_adapter.brokerLeaderPath
+        leader_path = self.get_zone_leader_path (self.zone)
       
       try:
         @self.zk_adapter.zk.DataWatch(leader_path)
@@ -329,8 +334,28 @@ class BrokerMW ():
     except Exception as e:
       traceback.print_exc()
       raise e
-  #----------------------------------------
+  
+  
+  ########################################
+  # get zone leader path
+  ########################################
+  def get_zone_leader_path(self, zone):
+    """get the path of a zone"""
+    try:
+      self.logger.debug("BrokerMW::get_zone_leader_path - invoked")
+      if zone == 1:
+        return self.zk_adapter.zone1LeaderPath
+      elif zone == 2:
+        return self.zk_adapter.zone2LeaderPath
+      elif zone == 3:
+        return self.zk_adapter.zone3LeaderPath
 
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+
+  #----------------------------------------
+  
   ########################################
   # get interested topics
   ########################################

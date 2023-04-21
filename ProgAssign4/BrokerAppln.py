@@ -118,10 +118,8 @@ class BrokerAppln ():
       #------------------------------------------------
       self.logger.debug ("BrokerAppln::driver - ready to go")
 
-      #while (not self.mw_obj.lookup_topic (self.topiclist)):
-      #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
-      
-      self.mw_obj.first_election(self.mw_obj.zk_adapter.brokerPath, self.mw_obj.zk_adapter.brokerLeaderPath)
+      # compete for the leader in the broker group 
+      self.mw_obj.first_election(type="broker")
       self.mw_obj.on_leader_change(type="broker")
 
       while True:
