@@ -118,7 +118,7 @@ class BrokerAppln ():
       self.logger.debug ("BrokerAppln::driver - ready to go")
 
       # compete for the leader in the broker group 
-      self.mw_obj.first_election(self.mw_obj.get_zone_path (type="broker"))
+      self.mw_obj.first_election(type="broker")
       self.mw_obj.on_leader_change(type="broker")
 
       while True:
