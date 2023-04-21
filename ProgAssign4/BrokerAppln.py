@@ -124,7 +124,7 @@ class BrokerAppln ():
       while True:
         start = time.monotonic()
         while True:
-          results = self.mw_obj.lookup_topic (self.topics) # if lookup is successful
+          results = self.mw_obj.lookup_topic (self.topiclist) # if lookup is successful
           # pass each topic to mw
           end = time.monotonic()
           if results:
