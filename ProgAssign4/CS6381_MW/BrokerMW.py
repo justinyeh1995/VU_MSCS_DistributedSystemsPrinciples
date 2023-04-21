@@ -306,9 +306,18 @@ class BrokerMW ():
       self.logger.debug("BrokerMW::query_zone - invoked")
       zone = None
       # check number of brokers in each zone
-      zone1 = self.zk_adapter.zk.get_children(self.zk_adapter.zone1Path)
-      zone2 = self.zk_adapter.zk.get_children(self.zk_adapter.zone2Path)
-      zone3 = self.zk_adapter.zk.get_children(self.zk_adapter.zone3Path)
+      if self.zk_adapter.zk.exists(self.zk_adapter.zone1Path):
+        zone1 = self.zk_adapter.zk.get_children(self.zk_adapter.zone1Path)
+      else:
+        zone1 = []
+      if self.zk_adapter.zk.exists(self.zk_adapter.zone2Path):
+        zone2 = self.zk_adapter.zk.get_children(self.zk_adapter.zone2Path)
+      else:
+        zone2 = []
+      if self.zk_adapter.zk.exists(self.zk_adapter.zone3Path):
+        zone3 = self.zk_adapter.zk.get_children(self.zk_adapter.zone3Path)
+      else:
+        zone3 = []
       zone = sorted(zip([1,2,3],[len(zone1), len(zone2), len(zone3)]), key=lambda x: x[1])[0][0] # sort by number of brokers in each zone
       return zone
 

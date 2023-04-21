@@ -49,6 +49,8 @@ class BrokerAppln ():
     self.dissemination = None # direct or via broker
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
+    self.zone = None # the zone we are in
+    self.zone_topic = None # the topics we are interested in
 
   ########################################
   # configure/initialize
@@ -73,15 +75,12 @@ class BrokerAppln ():
                         config.get ("Topics", "Zone2").split (","),
                         config.get ("Topics", "Zone3").split (",")]
 
-      # Now get our topic list of interest
-      self.logger.debug ("PublisherAppln::configure - selecting our topic list")
-      self.topiclist = None  # let topic selector give us all the topics
-
       # Now setup up our underlying middleware object to which we delegate
       # everything
       self.logger.debug ("PublisherAppln::configure - initialize the middleware object")
       self.mw_obj = BrokerMW (self.logger)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
+      self.zone = self.mw_obj.zone # get the zone we are in
       
       self.logger.debug ("PublisherAppln::configure - configuration complete")
       
@@ -101,17 +100,17 @@ class BrokerAppln ():
         self.logger.debug ("BrokerAppln:: Not needed here")  
         return
 
-      # dump our contents (debugging purposes)
-      self.dump ()
 
       #------------------------------------------------
       # should know which topics we are interested in first
-      self.topics = self.zone_topic[self.mw_obj.zone-1] # get the topics for our zone
+      self.topiclist = self.zone_topic[self.mw_obj.zone-1] # get the topics for our zone
       #------------------------------------------------
+      # dump our contents (debugging purposes)
+      self.dump ()
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("BrokerAppln::driver - register with the discovery service")
       start = time.monotonic ()
-      result = self.mw_obj.register (self.name, self.topics)
+      result = self.mw_obj.register (self.name, self.topiclist)
       end = time.monotonic ()
       self.logger.debug ("BrokerAppln::driver - registration took {} seconds".format (end-start))
       self.logger.debug ("BrokerAppln::driver - result of registration".format (result))
@@ -119,7 +118,7 @@ class BrokerAppln ():
       self.logger.debug ("BrokerAppln::driver - ready to go")
 
       # compete for the leader in the broker group 
-      self.mw_obj.first_election(type="broker")
+      self.mw_obj.first_election(self.mw_obj.get_zone_path (type="broker"))
       self.mw_obj.on_leader_change(type="broker")
 
       while True:
@@ -151,6 +150,7 @@ class BrokerAppln ():
       self.logger.debug ("     Name: {}".format (self.name))
       self.logger.debug ("     Lookup: {}".format (self.lookup))
       self.logger.debug ("     Dissemination: {}".format (self.dissemination))
+      self.logger.debug ("     Zone: zone{}".format (self.zone))
       self.logger.debug ("     TopicList: {}".format (self.topiclist))
       self.logger.debug ("**********************************")
 
