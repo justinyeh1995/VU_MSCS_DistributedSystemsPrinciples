@@ -206,7 +206,7 @@ class BrokerMW ():
     
     try:
       leader_addr = self.zk_adapter.get_leader(leader_path)
-      self.logger.debug ("PublisherMW::first_watch -- the leader is {}".format (leader_addr))
+      self.logger.debug ("BrokerMW::first_watch -- the leader is {}".format (leader_addr))
       self.update_leader(type, leader_addr)
 
     except Exception as e:
@@ -225,12 +225,12 @@ class BrokerMW ():
       elif type == "broker":
         path, leader_path = self.get_zone_path (self.zone), self.get_zone_leader_path (self.zone)
       try:
-          self.logger.debug ("DiscoveryMW::first_election -- electing leader in path: {}".format (path))
+          self.logger.debug ("BrokerMW::first_election -- electing leader in path: {}".format (path))
           leader = self.zk_adapter.elect_leader (path, id=self.name)
           leader_addr = self.zk_adapter.get_leader_addr (path, leader)
-          self.logger.debug ("ZookeeperAdapter::watch -- elected leader: {} & address is: {}".format (leader, leader_addr))
+          self.logger.debug ("BrokerMW::first_election -- elected leader: {} & address is: {}".format (leader, leader_addr))
           self.zk_adapter.set_leader (leader_path, leader_addr)
-          self.logger.debug ("DiscoveryMW::first_election -- set leader: {}".format (leader))
+          self.logger.debug ("BrokerMW::first_election -- set leader: {}".format (leader))
           self.update_leader ("discovery", leader_addr) 
 
       except Exception as e:
@@ -251,9 +251,9 @@ class BrokerMW ():
     @self.zk_adapter.zk.ChildrenWatch(path)
     def watch_node(children):
       try:
-        self.logger.debug("DiscoveryMW::on_leader_change - invoked")
+        self.logger.debug("BrokerMW::on_leader_change - invoked")
         leader_addr = self.zk_adapter.election (path, leader_path)
-        self.logger.debug("DiscoveryMW::on_leader_change - leader: {}".format(leader_addr))
+        self.logger.debug("BrokerMW::on_leader_change - leader: {}".format(leader_addr))
         self.update_leader ("discovery", leader_addr)
       
       except Exception as e:
@@ -277,12 +277,12 @@ class BrokerMW ():
           try:
             if data: 
               """if the primary entity(broker/discovery service) goes down, elect a new one"""
-              self.logger.debug ("PublisherMW::leader_watcher -- callback invoked")
-              self.logger.debug ("PublisherMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
+              self.logger.debug ("BrokerMW::leader_watcher -- callback invoked")
+              self.logger.debug ("BrokerMW::leader_watcher -- data: {}, stat: {}, event: {}".format (data, stat, event))
 
               leader_addr = data.decode('utf-8')
               self.update_leader(type, leader_addr)
-              self.logger.debug ("PublisherMW::leader_watcher -- the leader is {}".format (leader_addr))
+              self.logger.debug ("BrokerMW::leader_watcher -- the leader is {}".format (leader_addr))
               if event == "CHANGED":
                 self.reconnect(type, leader_path)
           except Exception as e:

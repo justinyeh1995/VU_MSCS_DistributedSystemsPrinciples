@@ -109,10 +109,10 @@ class DiscoveryAppln ():
       self.mw_obj.on_leader_change(type="discovery")
 
       # if we are using the via broker approach, then we need to elect a primary broker & register a handler
-      if self.lookup == "ViaBroker":
-        self.mw_obj.first_election (self.mw_obj.zk_adapter.brokerPath, self.mw_obj.zk_adapter.brokerLeaderPath)
-        self.mw_obj.on_leader_change (type="broker")
-        self.mw_obj.leader_watcher (type="broker")
+      #if self.lookup == "ViaBroker":
+      #  self.mw_obj.first_election (self.mw_obj.zk_adapter.brokerPath, self.mw_obj.zk_adapter.brokerLeaderPath)
+      #  self.mw_obj.on_leader_change (type="broker")
+      #  self.mw_obj.leader_watcher (type="broker")
 
       # handle socket events in an infinite loop
       self.mw_obj.event_loop()

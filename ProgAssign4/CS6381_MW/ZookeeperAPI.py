@@ -1,6 +1,7 @@
 import sys
 import traceback 
 from kazoo.client import KazooClient
+from kazoo.exceptions import NodeExistsError
 
 class ZKAdapter():
 
@@ -171,6 +172,9 @@ class ZKAdapter():
                 self.zk.create (leader_path, value=value.encode('utf-8') , ephemeral=True, makepath=True)
             else:
                 self.zk.set (leader_path, value=value.encode('utf-8'))
+        except NodeExistsError:
+            self.logger.debug ("ZookeeperAdapter::set_leader -- leader_path already exists")
+            pass
         
         except Exception as e:
             traceback.print_exc()

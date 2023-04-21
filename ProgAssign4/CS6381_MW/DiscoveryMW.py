@@ -57,7 +57,7 @@ class DiscoveryMW ():
     self.zk_adapter = None
     self.discovery_nodes = []
     self.disc_leader = None
-    self.broker_leader = None
+    self.broker_leader_addrs = []
 
 
   ########################################
@@ -274,8 +274,7 @@ class DiscoveryMW ():
         self.logger.debug("DiscoveryMW::on_leader_change - invoked")
         leader_addr = self.zk_adapter.election (path, leader_path)
         self.logger.debug("DiscoveryMW::on_leader_change - leader: {}".format(leader_addr))
-        self.update_leader ("discovery", leader_addr)
-      
+        self.disc_leader = leader_addr 
       except Exception as e:
           traceback.print_exc()
           raise e
@@ -387,8 +386,10 @@ class DiscoveryMW ():
         buf2send = json.dumps(info).encode('utf-8')
         self.broadcast_to_discovery_nodes ("register", buf2send)
         #-----------------------------------------------------------
-        self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
-        self.broker_leader_addr = self.zk_adapter.get_leader (self.zk_adapter.brokerLeaderPath) # get leader address
+        #self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
+        #self.broker_leader_addr = [self.zk_adapter.get_leader (self.zk_adapter.zone1LeaderPath), # get leader address
+        #                            self.zk_adapter.get_leader (self.zk_adapter.zone2LeaderPath),
+        #                            self.zk_adapter.get_leader (self.zk_adapter.zone3LeaderPath)]
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
@@ -497,11 +498,13 @@ class DiscoveryMW ():
 
         else:
           self.logger.debug ("DiscoveryMW::gen_lookup_resp - request from subscriber")
-          self.broker_leader_addr = self.zk_adapter.get_leader (self.zk_adapter.brokerLeaderPath)
-          self.logger.debug ("DiscoveryMW::gen_lookup_resp - broker leader at {}".format(self.broker_leader_addr))
+          self.broker_leader_addrs = [self.zk_adapter.get_leader (self.zk_adapter.zone1LeaderPath), 
+                                      self.zk_adapter.get_leader (self.zk_adapter.zone2LeaderPath),
+                                      self.zk_adapter.get_leader (self.zk_adapter.zone3LeaderPath)]
+          self.logger.debug ("DiscoveryMW::gen_lookup_resp - broker leader at {}".format(self.broker_leader_addrs))
           for name, detail in self.registry.items():
             if (detail["role"] == "broker" 
-                and detail["addr"] + ":" + str(detail["port"]) == self.broker_leader_addr):
+                and detail["addr"] + ":" + str(detail["port"]) in self.broker_leader_addrs):
               self.logger.debug ("DiscoveryMW::gen_lookup_resp - found broker leader")
               info = discovery_pb2.RegistrantInfo ()
               info.id = name
