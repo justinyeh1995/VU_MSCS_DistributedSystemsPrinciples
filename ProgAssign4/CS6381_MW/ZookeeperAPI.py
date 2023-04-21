@@ -31,6 +31,10 @@ class ZKAdapter():
         #---------------------------------------------------
         self.topicPath = self.root_path + "/topic"  # refers to the znode path being manipulated
         #---------------------------------------------------
+        self.topicZone1Path = self.root_path + "/zone1"  # refers to the znode path being manipulated
+        self.topicZone2Path = self.root_path + "/zone2"  # refers to the znode path being manipulated
+        self.topicZone3Path = self.root_path + "/zone3"  # refers to the znode path being 
+        #---------------------------------------------------
         self.path = self.discoveryPath + "/" + self.name # refers to the znode path where this node is registered
         #---------------------------------------------------
         self.leader = False

@@ -29,30 +29,14 @@ import random # needed in the topic selection using random numbers
 
 
 # Import our topic selector. Feel free to use alternate way to
-# get your topics of interest
-from topic_selector import TopicSelector
 
 # Now import our CS6381 Middleware
 from CS6381_MW.BrokerMW import BrokerMW
-
-# import any other packages you need.
-from enum import Enum  # for an enumeration we are using to describe what state we are in
 
 ##################################
 #       PublisherAppln class
 ##################################
 class BrokerAppln ():
-
-  # these are the states through which our publisher appln object goes thru.
-  # We maintain the state so we know where we are in the lifecycle and then
-  # take decisions accordingly
-  class State (Enum):
-    INITIALIZE = 0,
-    CONFIGURE = 1,
-    REGISTER = 2,
-    ISREADY = 3,
-    DISSEMINATE = 4,
-    COMPLETED = 5
 
   ########################################
   # constructor
@@ -85,11 +69,13 @@ class BrokerAppln ():
       config.read (args.config)
       self.lookup = config["Discovery"]["Strategy"]
       self.dissemination = config["Dissemination"]["Strategy"]
-    
+      self.zone_topic = [config.get ("Topics", "Zone1").split (","),
+                        config.get ("Topics", "Zone2").split (","),
+                        config.get ("Topics", "Zone3").split (",")]
+
       # Now get our topic list of interest
       self.logger.debug ("PublisherAppln::configure - selecting our topic list")
-      ts = TopicSelector ()
-      self.topiclist = ts.interest (num = 9)  # let topic selector give us all the topics
+      self.topiclist = None  # let topic selector give us all the topics
 
       # Now setup up our underlying middleware object to which we delegate
       # everything
@@ -118,14 +104,18 @@ class BrokerAppln ():
       # dump our contents (debugging purposes)
       self.dump ()
 
+      #------------------------------------------------
+      # should know which topics we are interested in first
+      self.topics = self.zone_topic[self.mw_obj.zone-1] # get the topics for our zone
+      #------------------------------------------------
       # First ask our middleware to register ourselves with the discovery service
       self.logger.debug ("BrokerAppln::driver - register with the discovery service")
       start = time.monotonic ()
-      result = self.mw_obj.register (self.name, self.topiclist)
+      result = self.mw_obj.register (self.name, self.topics)
       end = time.monotonic ()
       self.logger.debug ("BrokerAppln::driver - registration took {} seconds".format (end-start))
       self.logger.debug ("BrokerAppln::driver - result of registration".format (result))
-
+      #------------------------------------------------
       self.logger.debug ("BrokerAppln::driver - ready to go")
 
       #while (not self.mw_obj.lookup_topic (self.topiclist)):
@@ -137,7 +127,7 @@ class BrokerAppln ():
       while True:
         start = time.monotonic()
         while True:
-          results = self.mw_obj.lookup_topic (self.topiclist) # if lookup is successful
+          results = self.mw_obj.lookup_topic (self.topics) # if lookup is successful
           # pass each topic to mw
           end = time.monotonic()
           if results:

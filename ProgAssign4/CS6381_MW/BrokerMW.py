@@ -332,6 +332,21 @@ class BrokerMW ():
   #----------------------------------------
 
   ########################################
+  # get interested topics
+  ########################################
+  def get_topics(self):
+    """get interested topics"""
+    try:
+      self.logger.debug("BrokerMW::get_topics - invoked")
+      topics = self.zk_adapter.zk.get_children(self.zk_adapter.topicPath + "/" + "zone" + str(self.zone))
+      return topics
+
+    except Exception as e:
+      traceback.print_exc()
+      raise e
+  #----------------------------------------
+
+  ########################################
   # register with the discovery service
   ########################################
   def register (self, name, topiclist):
