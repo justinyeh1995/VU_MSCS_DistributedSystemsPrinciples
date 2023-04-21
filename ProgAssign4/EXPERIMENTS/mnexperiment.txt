@@ -1,16 +1,17 @@
-h3 python3 DiscoveryAppln.py -n disc5 -a 10.0.0.3 -p 5555 > disc5.out 2>&1 &
-h4 python3 DiscoveryAppln.py -n disc1 -a 10.0.0.4 -p 5555 > disc1.out 2>&1 &
-h18 python3 DiscoveryAppln.py -n disc2 -a 10.0.0.18 -p 5555 > disc2.out 2>&1 &
-h19 python3 DiscoveryAppln.py -n disc4 -a 10.0.0.19 -p 5555 > disc4.out 2>&1 &
-h20 python3 DiscoveryAppln.py -n disc3 -a 10.0.0.20 -p 5555 > disc3.out 2>&1 &
-h6 python3 PublisherAppln.py -n pub3 -a 10.0.0.6 -p 7777 -f 0.5 -i 1000 > pub3.out 2>&1 &
-h14 python3 PublisherAppln.py -n pub2 -a 10.0.0.14 -p 7777 -f 1 -i 2000 > pub2.out 2>&1 &
-h16 python3 PublisherAppln.py -n pub1 -a 10.0.0.16 -p 7777 -f 3 -i 1000 > pub1.out 2>&1 &
-h3 python3 BrokerAppln.py -n broker3 -a 10.0.0.3 -p 7778 > broker3.out 2>&1 &
-h12 python3 BrokerAppln.py -n broker1 -a 10.0.0.12 -p 7778 > broker1.out 2>&1 &
+h1 python3 DiscoveryAppln.py -n disc1 -a 10.0.0.1 -p 5555 > disc1.out 2>&1 &
+h15 python3 DiscoveryAppln.py -n disc3 -a 10.0.0.15 -p 5555 > disc3.out 2>&1 &
+h16 python3 DiscoveryAppln.py -n disc2 -a 10.0.0.16 -p 5555 > disc2.out 2>&1 &
+h17 python3 DiscoveryAppln.py -n disc4 -a 10.0.0.17 -p 5555 > disc4.out 2>&1 &
+h20 python3 DiscoveryAppln.py -n disc5 -a 10.0.0.20 -p 5555 > disc5.out 2>&1 &
+h5 python3 PublisherAppln.py -n pub2 -a 10.0.0.5 -p 7777 -f 0.5 -i 2000 > pub2.out 2>&1 &
+h9 python3 PublisherAppln.py -n pub1 -a 10.0.0.9 -p 7777 -f 4 -i 2000 > pub1.out 2>&1 &
+h19 python3 PublisherAppln.py -n pub3 -a 10.0.0.19 -p 7777 -f 4 -i 1000 > pub3.out 2>&1 &
+h4 python3 BrokerAppln.py -n broker1 -a 10.0.0.4 -p 7778 > broker1.out 2>&1 &
+h7 python3 BrokerAppln.py -n broker4 -a 10.0.0.7 -p 7778 > broker4.out 2>&1 &
+h11 python3 BrokerAppln.py -n broker3 -a 10.0.0.11 -p 7778 > broker3.out 2>&1 &
 h13 python3 BrokerAppln.py -n broker2 -a 10.0.0.13 -p 7778 > broker2.out 2>&1 &
-h13 python3 BrokerAppln.py -n broker4 -a 10.0.0.13 -p 7777 > broker4.out 2>&1 &
-h14 python3 BrokerAppln.py -n broker5 -a 10.0.0.14 -p 7778 > broker5.out 2>&1 &
-h9 python3 SubscriberAppln.py -n sub2 -T 9 > sub2.out 2>&1 &
-h15 python3 SubscriberAppln.py -n sub1 -T 9 > sub1.out 2>&1 &
-h19 python3 SubscriberAppln.py -n sub3 -T 9 > sub3.out 2>&1 &
+h16 python3 BrokerAppln.py -n broker6 -a 10.0.0.16 -p 7778 > broker6.out 2>&1 &
+h20 python3 BrokerAppln.py -n broker5 -a 10.0.0.20 -p 7778 > broker5.out 2>&1 &
+h1 python3 SubscriberAppln.py -n sub2 -T 9 > sub2.out 2>&1 &
+h9 python3 SubscriberAppln.py -n sub3 -T 9 > sub3.out 2>&1 &
+h10 python3 SubscriberAppln.py -n sub1 -T 9 > sub1.out 2>&1 &
