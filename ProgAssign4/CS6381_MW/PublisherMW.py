@@ -245,6 +245,31 @@ class PublisherMW ():
 
   #------------------------------------------
 
+  def compete_QoS (self, topic):
+    try:
+      #-----------------------------------------------------------
+      path = self.zk_adapter.topicPath + "/" + topic + "/" + self.addr + ":" + str(self.port)
+      value = self.addr + ":" + str(self.port) 
+      self.zk_adapter.register_node (path, value)
+      #-----------------------------------------------------------
+    except Exception as e:
+      raise e
+    
+
+  def get_topics_allowed (self, topiclist):
+    try:
+      #-----------------------------------------------------------
+      path = self.zk_adapter.topicPath
+      topics = []
+      for topic in topiclist:
+        topic_path = path + "/" + topic
+        if self.zk_adapter.zk.get_children (topic_path)[0] == self.addr + ":" + str(self.port):
+          topics.append(topic)
+      #-----------------------------------------------------------
+      return topics
+    except Exception as e:
+      raise e
+
   ########################################
   # register with the discovery service
   ########################################

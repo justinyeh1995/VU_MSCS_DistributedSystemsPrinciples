@@ -139,6 +139,11 @@ class PublisherAppln ():
         time.sleep (1)
       self.logger.debug ("PublisherAppln::driver - result of registration".format (result))
 
+      # comete for Quality of Service
+      #-------------------------------------------------
+      for topic in self.topiclist:
+        self.mw_obj.compete_QoS (topic)
+      
       # Now disseminate
       ts = TopicSelector ()
       for i in range (self.iters):
@@ -146,7 +151,14 @@ class PublisherAppln ():
         # each iteration OR some subset of it. Please modify the logic accordingly.
         # Here, we choose to disseminate on all topics that we publish.  Also, we don't care
         # about their values. But in future assignments, this can change.
-        for topic in self.topiclist:
+        
+        # Now we wait for zookeeper to tell us which topics we are allowed to publish
+        #-------------------------------------------------
+        self.logger.debug ("PublisherAppln::driver - waiting for zookeeper to tell us which topics we are allowed to publish")
+        topics_allowed = self.mw_obj.get_topics_allowed (self.topiclist)
+        self.logger.debug ("PublisherAppln::driver - topics_allowed for this iter: {}".format (topics_allowed))
+
+        for topic in topics_allowed:
           dissemination_data = topic + ":" + ts.gen_publication (topic) 
           self.mw_obj.disseminate (dissemination_data)
           signal.signal(signal.SIGINT, self.my_handler) # register our signal handler
@@ -185,7 +197,7 @@ class PublisherAppln ():
       self.logger.debug ("PublisherAppln::dump")
       self.logger.debug ("------------------------------")
       self.logger.debug ("     Name: {}".format (self.name))
-      self.logger.debug ("     Dissemination: {}".format (self.lookup))
+      self.logger.debug ("     Address: {}".format (self.mw_obj.addr+":"+str(self.mw_obj.port)))
       self.logger.debug ("     TopicList: {}".format (self.topiclist))
       self.logger.debug ("     Iterations: {}".format (self.iters))
       self.logger.debug ("**********************************")
@@ -220,7 +232,7 @@ def parseCmdLineArgs ():
 
   parser.add_argument ("-i", "--iters", type=int, default=1000, help="number of publication iterations (default: 1000)")
   
-  parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=1, help="Number of topics to publish, currently restricted to max of 9")
+  parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=7, help="Number of topics to publish, currently restricted to max of 9")
 
   parser.add_argument ("-f", "--frequency", type=float ,default=0.25, help="Rate at which topics disseminated: default once a second - use integers")
 

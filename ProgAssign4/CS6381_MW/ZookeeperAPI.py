@@ -31,10 +31,6 @@ class ZKAdapter():
         #---------------------------------------------------
         self.topicPath = self.root_path + "/topic"  # refers to the znode path being manipulated
         #---------------------------------------------------
-        self.topicZone1Path = self.root_path + "/zone1"  # refers to the znode path being manipulated
-        self.topicZone2Path = self.root_path + "/zone2"  # refers to the znode path being manipulated
-        self.topicZone3Path = self.root_path + "/zone3"  # refers to the znode path being 
-        #---------------------------------------------------
         self.path = self.discoveryPath + "/" + self.name # refers to the znode path where this node is registered
         #---------------------------------------------------
         self.leader = False
@@ -145,15 +141,6 @@ class ZKAdapter():
         """
         try:
             self.logger.debug ("ZookeeperAdapter::elect_leader -- path = {}".format (path))
-            #-----------------Election-----------------
-            #election = self.zk.Election(path, id) # the identifier is "leader"
-            #def my_leader_function():
-            #    self.logger.debug ("ZookeeperAdapter::elect_leader -- running leader election")
-            #    leader_list = election.contenders()
-            #    self.logger.debug ("ZookeeperAdapter::elect_leader -- leader_list = {}".format (leader_list))
-            #    self.leader =  leader_list[-1]
-            #    self.logger.debug (("ZookeeperAdapter::elect_leader -- leader is: {}".format (self.leader)))
-            #election.run(my_leader_function)
             #-----------------Election-----------------
             self.leader = self.zk.get_children (path)[0]
             self.logger.debug (("ZookeeperAdapter::elect_leader -- leader is: {}".format (self.leader)))
