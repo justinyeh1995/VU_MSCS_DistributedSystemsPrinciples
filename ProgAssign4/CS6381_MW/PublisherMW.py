@@ -245,7 +245,7 @@ class PublisherMW ():
 
   #------------------------------------------
 
-  def compete_QoS (self, topic):
+  def compete_Ownership (self, topic):
     try:
       #-----------------------------------------------------------
       path = self.zk_adapter.topicPath + "/" + topic + "/" + self.addr + ":" + str(self.port)

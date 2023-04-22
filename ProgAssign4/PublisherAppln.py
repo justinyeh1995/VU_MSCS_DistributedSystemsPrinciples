@@ -142,7 +142,7 @@ class PublisherAppln ():
       # comete for Quality of Service
       #-------------------------------------------------
       for topic in self.topiclist:
-        self.mw_obj.compete_QoS (topic)
+        self.mw_obj.compete_Ownership (topic)
       
       # Now disseminate
       ts = TopicSelector ()
