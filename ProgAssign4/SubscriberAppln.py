@@ -41,6 +41,7 @@ from topic_selector import TopicSelector
 
 # Now import our CS6381 Middleware
 from CS6381_MW.SubscriberMW import SubscriberMW
+from CS6381_MW.KafkaAPI import KafkaAdapter
 
 ##################################
 #       SubscriberAppln class
@@ -91,6 +92,7 @@ class SubscriberAppln ():
       self.mw_obj = SubscriberMW (self.logger, self.topiclist)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("SubscriberAppln::configure - configuration complete")
+      self.kaf_obj = KafkaAdapter(self.logger)
       
     except Exception as e:
       raise e
@@ -129,8 +131,15 @@ class SubscriberAppln ():
 
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
-      #while (not self.mw_obj.lookup_topic (self.topiclist)):
-      #  time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
+      #-------------------------------------------------
+      self.logger.debug ("SubscriberAppln::driver - query Kafka for history data")
+      history_dict = self.kaf_obj.receive (self.topiclist)
+
+      for history in history_dict:
+        self.logger.debug ("SubscriberAppln::driver - history data for topic {}".format (history))
+        for data in history_dict[history]:
+          self.logger.debug ("SubscriberAppln::driver - {}".format (data))
+      #-------------------------------------------------
 
       while True:
           start = time.monotonic()

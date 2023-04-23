@@ -15,9 +15,11 @@ class KafkaAdapter:
                                       api_version=(0, 10, 1))
 
     def send(self, topic, message):
+        self.logger.debug("KafkaAdapter::Sending message to topic: " + topic)
         self.producer.send(topic, message)
 
     def receive(self, topiclist):
+        self.logger.debug("KafkaAdapter::Receiving message from topic: " + str(topiclist))
         self.consumer.subscribe(topiclist)
         return self.consumer.poll(timeout_ms=1000)
 

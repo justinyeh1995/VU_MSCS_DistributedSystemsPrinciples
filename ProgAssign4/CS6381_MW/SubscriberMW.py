@@ -48,7 +48,6 @@ from zmq.error import ZMQError # for catching ZMQ errors
 from CS6381_MW import discovery_pb2
 from CS6381_MW import ZookeeperAPI 
 
-
 # import any other packages you need.
 
 ##################################

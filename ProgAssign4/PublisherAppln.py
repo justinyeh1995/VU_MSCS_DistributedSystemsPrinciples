@@ -59,6 +59,7 @@ from topic_selector import TopicSelector
 
 # Now import our CS6381 Middleware
 from CS6381_MW.PublisherMW import PublisherMW
+from CS6381_MW.KafkaAPI import KafkaAdapter
 
 ##################################
 #       PublisherAppln class
@@ -112,6 +113,7 @@ class PublisherAppln ():
       self.mw_obj = PublisherMW (self.logger)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("PublisherAppln::configure - configuration complete")
+      self.kafka_obj = KafkaAdapter(self.logger)
       
     except Exception as e:
       raise e
@@ -169,6 +171,8 @@ class PublisherAppln ():
             self.sliding_history[topic].pop(0)
           self.sliding_history[topic].append(dissemination_data)
           #-------------------------------------------------
+          self.logger.debug ("PublisherAppln::driver - send {} history".format (topic))
+          self.kafka_obj.send (topic, self.sliding_history[topic])
           signal.signal(signal.SIGINT, self.my_handler) # register our signal handler
           signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
         # avoid transmission too frequently
