@@ -51,6 +51,7 @@ import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import random # needed in the topic selection using random numbers
 import signal # for signal handling
+import collections # for sliding history
 
 # Import our topic selector. Feel free to use alternate way to
 # get your topics of interest
@@ -76,6 +77,7 @@ class PublisherAppln ():
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
     self.num_topics = None # total num of topics we publish
+    self.sliding_history = collections.defaultdict(list) # sliding history of topics we publish
 
   ########################################
   # configure/initialize
@@ -161,6 +163,12 @@ class PublisherAppln ():
         for topic in topics_allowed:
           dissemination_data = topic + ":" + ts.gen_publication (topic) 
           self.mw_obj.disseminate (dissemination_data)
+          #-------------------------------------------------
+          # maintain last 10 publications per topic
+          if self.sliding_history[topic] >= 10:
+            self.sliding_history[topic].pop(0)
+          self.sliding_history[topic].append(dissemination_data)
+          #-------------------------------------------------
           signal.signal(signal.SIGINT, self.my_handler) # register our signal handler
           signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
         # avoid transmission too frequently
