@@ -389,7 +389,7 @@ class SubscriberMW ():
   #################################################################
   # subscribe the data on our sub socket
   #################################################################
-  def subscribe (self):
+  def subscribe (self, qos):
     try:
       self.logger.debug ("SubscriberMW::subscribe")
       
@@ -403,7 +403,7 @@ class SubscriberMW ():
         self.logger.debug ("SubscriberMW::subscribe - timeout - likely no data - life is good...")
         return
       
-      if len(history) < 5:
+      if len(history) < qos:
         self.logger.debug ("SubscriberMW::subscribe - QoS not met - eject this message...")
         return
 

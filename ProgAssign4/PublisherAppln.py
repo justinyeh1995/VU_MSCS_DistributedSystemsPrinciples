@@ -79,6 +79,7 @@ class PublisherAppln ():
     self.logger = logger  # internal logger for print statements
     self.num_topics = None # total num of topics we publish
     self.sliding_history = collections.defaultdict(list) # sliding history of topics we publish
+    self.qos = None # QoS level for the publisher
 
   ########################################
   # configure/initialize
@@ -114,6 +115,7 @@ class PublisherAppln ():
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("PublisherAppln::configure - configuration complete")
       self.kafka_obj = KafkaAdapter(self.logger)
+      self.qos = args.qos
       
     except Exception as e:
       raise e
@@ -166,7 +168,7 @@ class PublisherAppln ():
           dissemination_data = topic + ":" + ts.gen_publication (topic) 
           #-------------------------------------------------
           # maintain last 10 publications per topic
-          if len(self.sliding_history[topic]) >= 10:
+          if len(self.sliding_history[topic]) >= self.qos:
             self.sliding_history[topic].pop(0)
           self.sliding_history[topic].append(dissemination_data)
           #-------------------------------------------------

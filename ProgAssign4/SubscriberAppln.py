@@ -60,6 +60,7 @@ class SubscriberAppln ():
     self.mw_obj = None # handle to the underlying Middleware object
     self.logger = logger  # internal logger for print statements
     self.num_topics = None # total num of topics we publish
+    self.qos = None # quality of service
 
   ########################################
   # configure/initialize
@@ -93,6 +94,7 @@ class SubscriberAppln ():
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("SubscriberAppln::configure - configuration complete")
       self.kaf_obj = KafkaAdapter(self.logger)
+      self.qos = args.qos
       
     except Exception as e:
       raise e
@@ -150,7 +152,7 @@ class SubscriberAppln ():
             if results:
               break
           self.logger.debug ("SubscriberAppln::driver - look up successful, took {} seconds".format (end - start))
-          self.mw_obj.subscribe()
+          self.mw_obj.subscribe(self.qos)
           signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
 
     except Exception as e:
@@ -214,7 +216,7 @@ def parseCmdLineArgs ():
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 
   parser.add_argument ("-q", "--qos", type=int, choices=range(1,10), default=1, help="QoS level, default=2")
-  
+
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   
   return parser.parse_args()
