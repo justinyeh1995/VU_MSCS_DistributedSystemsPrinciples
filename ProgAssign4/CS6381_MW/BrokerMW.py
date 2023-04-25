@@ -171,7 +171,7 @@ class BrokerMW ():
         self.logger.debug ("BrokerMW::reconnect - disconnect from Discovery service at {}".format (req_addr))
         #--------------------------------------
         self.poller.unregister (self.req)
-        time.sleep(1)
+        #time.sleep(1)
         #-------------------------------------- 
         self.req.close()
         self.logger.debug ("BrokerMW::reconnect - closed the REQ socket")

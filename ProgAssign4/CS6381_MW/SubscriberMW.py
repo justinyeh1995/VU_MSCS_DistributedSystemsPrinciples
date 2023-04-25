@@ -162,10 +162,10 @@ class SubscriberMW ():
         self.logger.debug ("SubscriberMW::reconnect - reconnect to Discovery service")
         #--------------------------------------
         #self.poller.unregister (self.req)
-        time.sleep(1)
+        #time.sleep(1)
         self.req.close()
         #--------------------------------------
-        time.sleep(1)
+        #time.sleep(1)
         #--------------------------------------
         self.req = self.context.socket(zmq.REQ)
         # Connet to the broker
@@ -181,10 +181,10 @@ class SubscriberMW ():
       elif type == "broker":
         self.logger.debug ("SubscriberMW::reconnect - reconnect to Broker service")
         #--------------------------------------
-        time.sleep(1)
+        #time.sleep(1)
         self.sub.close()
         #--------------------------------------
-        time.sleep(1)
+        #time.sleep(1)
         #--------------------------------------
         self.sub = self.context.socket(zmq.SUB)
         # Connet to the broker
@@ -351,9 +351,7 @@ class SubscriberMW ():
         infoList = self.event_loop()
         pubList = infoList.publishers
       except:
-        #self.logger.debug ("SubscriberMW::lookup - exception: {}".format (e))
         self.logger.debug ("SubscriberMW::lookup - exception happens but we will try again")
-        time.sleep(1)
         self.reconnect(type="discovery", path=self.zk_adapter.discoveryLeaderPath)
         return False
  
@@ -397,8 +395,8 @@ class SubscriberMW ():
       
       try:
         message = self.sub.recv_string()
-        history, dissemTime = message.split(":")
-        history = json.loads(history)
+        topic, content, dissemTime = message.split(":")
+        history = json.loads(content)
       except:
         self.logger.debug ("SubscriberMW::subscribe - timeout - likely no data - life is good...")
         return
@@ -408,9 +406,8 @@ class SubscriberMW ():
         return
 
       self.logger.debug ("Latency = {}".format (1000*(time.monotonic() - float(dissemTime))))
-      for _ in history:
-        topic, content = _.split(":")
-        self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
+      for value in history:
+        self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, value))
 
     except Exception as e:
       traceback.print_exc()

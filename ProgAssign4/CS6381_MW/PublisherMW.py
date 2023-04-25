@@ -445,11 +445,10 @@ class PublisherMW ():
   #################################################################
   # disseminate the data on our pub socket
   #################################################################
-  def disseminate (self, data):
+  def disseminate (self, topic, data):
     try:
       #data += ":" + str(timeit.default_timer())
-      data = json.dumps(data)
-      data += ":" + str(time.monotonic())
+      data = topic + ":" + json.dumps(data) + ":" + str(time.monotonic())
       self.logger.debug ("PublisherMW::disseminate - {}".format (data))
       self.pub.send_string (data)
 

@@ -114,7 +114,7 @@ class PublisherAppln ():
       self.mw_obj = PublisherMW (self.logger)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("PublisherAppln::configure - configuration complete")
-      self.kafka_obj = KafkaAdapter(self.logger)
+      #self.kafka_obj = KafkaAdapter(self.logger)
       self.qos = args.qos
       
     except Exception as e:
@@ -165,14 +165,14 @@ class PublisherAppln ():
         self.logger.debug ("PublisherAppln::driver - topics_allowed for this iter: {}".format (topics_allowed))
 
         for topic in topics_allowed:
-          dissemination_data = topic + ":" + ts.gen_publication (topic) 
+          dissemination_data = ts.gen_publication (topic) 
           #-------------------------------------------------
           # maintain last 10 publications per topic
           if len(self.sliding_history[topic]) >= self.qos:
             self.sliding_history[topic].pop(0)
           self.sliding_history[topic].append(dissemination_data)
           #-------------------------------------------------
-          self.mw_obj.disseminate (self.sliding_history[topic])
+          self.mw_obj.disseminate (topic, self.sliding_history[topic])
           #self.kafka_obj.send (topic, self.sliding_history[topic])
           signal.signal(signal.SIGINT, self.my_handler) # register our signal handler
           signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
@@ -249,7 +249,7 @@ def parseCmdLineArgs ():
 
   parser.add_argument ("-f", "--frequency", type=float ,default=0.25, help="Rate at which topics disseminated: default once a second - use integers")
 
-  parser.add_argument ("-q", "--qos", type=int, choices=range(1,10), default=1, help="Quality of Service, default 1")
+  parser.add_argument ("-q", "--qos", type=int, choices=range(1,21), default=1, help="Quality of Service, default 1")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   #parser.add_argument ("-l", "--loglevel", type=int, default=logging.INFO, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 20=logging.INFO")

@@ -305,6 +305,7 @@ class ExperimentGenerator ():
             "-a " + str(nested_dict["IP"]) + " " + \
             "-p " + str(nested_dict["port"]) + " " + \
             "-f " + str(frequency) + " " + \
+            "-q " + str(random.randint (1, 10)) + " " + \
             "-i " + str(iterations) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
           f.write (cmdline)
@@ -344,7 +345,8 @@ class ExperimentGenerator ():
           # build the command line
           cmdline = host + " python3 SubscriberAppln.py " + \
             "-n " + nested_dict["id"]  + " " + \
-            "-T " + str(num_topics) + " " + \
+            "-T " + str(random.randint (5, 9)) + " " + \
+            "-q " + str(random.randint (1, 10)) + " " + \
             "> " + nested_dict["id"] + ".out 2>&1 &\n"
           f.write (cmdline)
       

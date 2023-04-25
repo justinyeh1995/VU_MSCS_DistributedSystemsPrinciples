@@ -386,10 +386,6 @@ class DiscoveryMW ():
         buf2send = json.dumps(info).encode('utf-8')
         self.broadcast_to_discovery_nodes ("register", buf2send)
         #-----------------------------------------------------------
-        #self.broker_leader = self.zk_adapter.election (self.zk_adapter.brokerPath, self.zk_adapter.brokerLeaderPath) # elect a leader for brokers
-        #self.broker_leader_addr = [self.zk_adapter.get_leader (self.zk_adapter.zone1LeaderPath), # get leader address
-        #                            self.zk_adapter.get_leader (self.zk_adapter.zone2LeaderPath),
-        #                            self.zk_adapter.get_leader (self.zk_adapter.zone3LeaderPath)]
 
       self.logger.debug ("DiscoveryMW::Registration info")
       print(self.registry)
@@ -454,10 +450,6 @@ class DiscoveryMW ():
       # a real string
       buf2send = disc_rep.SerializeToString ()
       self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
-
-      # now send this to our discovery service
-      #self.logger.debug ("DiscoveryMW::register - send stringified buffer to Discovery service")
-      #self.req.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
 
       return buf2send
     
@@ -536,9 +528,6 @@ class DiscoveryMW ():
       buf2send = disc_resp.SerializeToString ()
       self.logger.debug ("Stringified serialized buf = {}".format (buf2send))
 
-      # now send this to our discovery service
-      #self.logger.debug ("DiscoveryMW::is_ready - send stringified buffer to Discovery service")
-      #self.rep.send (buf2send)  # we use the "send" method of ZMQ that sends the bytes
       return buf2send
       
     except Exception as e:

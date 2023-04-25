@@ -93,7 +93,7 @@ class SubscriberAppln ():
       self.mw_obj = SubscriberMW (self.logger, self.topiclist)
       self.mw_obj.configure (args) # pass remainder of the args to the m/w object
       self.logger.debug ("SubscriberAppln::configure - configuration complete")
-      self.kaf_obj = KafkaAdapter(self.logger)
+      #self.kaf_obj = KafkaAdapter(self.logger)
       self.qos = args.qos
       
     except Exception as e:
@@ -134,13 +134,13 @@ class SubscriberAppln ():
       self.logger.debug ("SubscriberAppln::driver - ready to go")
 
       #-------------------------------------------------
-      self.logger.debug ("SubscriberAppln::driver - query Kafka for history data")
-      history_dict = self.kaf_obj.receive (self.topiclist)
+      #self.logger.debug ("SubscriberAppln::driver - query Kafka for history data")
+      #history_dict = self.kaf_obj.receive (self.topiclist)
 
-      for history in history_dict:
-        self.logger.debug ("SubscriberAppln::driver - history data for topic {}".format (history))
-        for data in history_dict[history]:
-          self.logger.debug ("SubscriberAppln::driver - {}".format (data))
+      #for history in history_dict:
+      #  self.logger.debug ("SubscriberAppln::driver - history data for topic {}".format (history))
+      #  for data in history_dict[history]:
+      #    self.logger.debug ("SubscriberAppln::driver - {}".format (data))
       #-------------------------------------------------
 
       while True:
@@ -215,7 +215,7 @@ def parseCmdLineArgs ():
 
   parser.add_argument ("-c", "--config", default="config.ini", help="configuration file (default: config.ini)")
 
-  parser.add_argument ("-q", "--qos", type=int, choices=range(1,10), default=1, help="QoS level, default=2")
+  parser.add_argument ("-q", "--qos", type=int, choices=range(1,11), default=1, help="QoS level, default=1")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   
