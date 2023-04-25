@@ -247,7 +247,7 @@ def parseCmdLineArgs ():
 
   parser.add_argument ("-f", "--frequency", type=float ,default=0.25, help="Rate at which topics disseminated: default once a second - use integers")
 
-  parser.add_argument ("-q", "--qos", type=int, choices=range(1,10), default=2, help="Quality of Service, default 1")
+  parser.add_argument ("-q", "--qos", type=int, choices=range(1,10), default=1, help="Quality of Service, default 1")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   #parser.add_argument ("-l", "--loglevel", type=int, default=logging.INFO, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 20=logging.INFO")
