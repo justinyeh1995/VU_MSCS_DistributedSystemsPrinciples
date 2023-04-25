@@ -164,15 +164,14 @@ class PublisherAppln ():
 
         for topic in topics_allowed:
           dissemination_data = topic + ":" + ts.gen_publication (topic) 
-          self.mw_obj.disseminate (dissemination_data)
           #-------------------------------------------------
           # maintain last 10 publications per topic
-          if self.sliding_history[topic] >= 10:
+          if len(self.sliding_history[topic]) >= 10:
             self.sliding_history[topic].pop(0)
           self.sliding_history[topic].append(dissemination_data)
           #-------------------------------------------------
-          self.logger.debug ("PublisherAppln::driver - send {} history".format (topic))
-          self.kafka_obj.send (topic, self.sliding_history[topic])
+          self.mw_obj.disseminate (self.sliding_history[topic])
+          #self.kafka_obj.send (topic, self.sliding_history[topic])
           signal.signal(signal.SIGINT, self.my_handler) # register our signal handler
           signal.signal(signal.SIGTERM, self.my_handler) # register our signal handler
         # avoid transmission too frequently
@@ -247,6 +246,8 @@ def parseCmdLineArgs ():
   parser.add_argument ("-T", "--num_topics", type=int, choices=range(1,10), default=7, help="Number of topics to publish, currently restricted to max of 9")
 
   parser.add_argument ("-f", "--frequency", type=float ,default=0.25, help="Rate at which topics disseminated: default once a second - use integers")
+
+  parser.add_argument ("-q", "--qos", type=int, choices=range(1,10), default=2, help="Quality of Service, default 1")
 
   parser.add_argument ("-l", "--loglevel", type=int, default=logging.DEBUG, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 10=logging.DEBUG")
   #parser.add_argument ("-l", "--loglevel", type=int, default=logging.INFO, choices=[logging.DEBUG,logging.INFO,logging.WARNING,logging.ERROR,logging.CRITICAL], help="logging level, choices 10,20,30,40,50: default 20=logging.INFO")

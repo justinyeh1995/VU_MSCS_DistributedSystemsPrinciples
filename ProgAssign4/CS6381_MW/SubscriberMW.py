@@ -41,6 +41,7 @@ import argparse # for argument parsing
 import configparser # for configuration parsing
 import logging # for logging. Use it in place of print statements.
 import zmq  # ZMQ sockets
+import json # for JSON
 import traceback # for printing stack traces
 from zmq.error import ZMQError # for catching ZMQ errors
 
@@ -396,14 +397,20 @@ class SubscriberMW ():
       
       try:
         message = self.sub.recv_string()
-        topic, content, dissemTime = message.split(":")
+        history, dissemTime = message.split(":")
+        history = json.loads(history)
       except:
         self.logger.debug ("SubscriberMW::subscribe - timeout - likely no data - life is good...")
         return
       
-      #self.logger.debug ("Latency = {}".format (timeit.default_timer() - float(dissemTime)))
+      if len(history) < 5:
+        self.logger.debug ("SubscriberMW::subscribe - QoS not met - eject this message...")
+        return
+
       self.logger.debug ("Latency = {}".format (1000*(time.monotonic() - float(dissemTime))))
-      self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
+      for _ in history:
+        topic, content = _.split(":")
+        self.logger.debug ("Retrieved Topic = {}, Content = {}".format (topic, content))
 
     except Exception as e:
       traceback.print_exc()

@@ -28,6 +28,7 @@ import sys    # for syspath and system exception
 import time   # for sleep
 import zmq  # ZMQ sockets
 import traceback
+import json
 
 # import serialization logic
 from CS6381_MW import discovery_pb2
@@ -447,6 +448,7 @@ class PublisherMW ():
   def disseminate (self, data):
     try:
       #data += ":" + str(timeit.default_timer())
+      data = json.dumps(data)
       data += ":" + str(time.monotonic())
       self.logger.debug ("PublisherMW::disseminate - {}".format (data))
       self.pub.send_string (data)
