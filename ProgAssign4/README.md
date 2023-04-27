@@ -1,8 +1,14 @@
 ## Generate experiment scripts
 ```sh=
 cd EXPERIMENTS
-python3 exp_generator.py -P 2 -S 2 -B 2 -D 2
+python3 exp_generator.py -P 3 -S 3 -B 6 -D 5
 ```
+
+## Configure Load Balancing 
+
+In `config.ini`
+
+pick the desired Strategy, where `True` means there will be load balancing among the brokers
 
 ## Start Mininet Topology
 ```sh=
