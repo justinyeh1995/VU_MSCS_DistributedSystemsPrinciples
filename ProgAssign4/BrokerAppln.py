@@ -71,10 +71,21 @@ class BrokerAppln ():
       config.read (args.config)
       self.lookup = config["Discovery"]["Strategy"]
       self.dissemination = config["Dissemination"]["Strategy"]
-      self.zone_topic = [config.get ("Topics", "Zone1").split (","),
-                        config.get ("Topics", "Zone2").split (","),
-                        config.get ("Topics", "Zone3").split (",")]
-
+      self.isLoadBalancing = config["LoadBalancing"]["Strategy"]
+      #----------------------------------------------------------------
+      if self.isLoadBalancing == "True":
+        self.logger.debug ("PublisherAppln::configure - load balancing is enabled")
+        self.zone_topic = [config.get ("Topics", "Zone1").split (","),
+                          config.get ("Topics", "Zone2").split (","),
+                          config.get ("Topics", "Zone3").split (",")] 
+      else:
+        self.logger.debug ("PublisherAppln::configure - load balancing is disabled")
+        self.zone_topic = [config.get ("Topics", "Zone1").split (",") + \
+                           config.get ("Topics", "Zone2").split (",") + \
+                           config.get ("Topics", "Zone3").split (","),
+                           [], 
+                           []]
+      #----------------------------------------------------------------
       # Now setup up our underlying middleware object to which we delegate
       # everything
       self.logger.debug ("PublisherAppln::configure - initialize the middleware object")
@@ -99,8 +110,6 @@ class BrokerAppln ():
       if self.dissemination == "Direct":
         self.logger.debug ("BrokerAppln:: Not needed here")  
         return
-
-
       #------------------------------------------------
       # should know which topics we are interested in first
       self.topiclist = self.zone_topic[self.mw_obj.zone-1] # get the topics for our zone
@@ -122,6 +131,11 @@ class BrokerAppln ():
       self.mw_obj.on_leader_change(type="broker")
 
       while True:
+        # check if we are the leader
+        self.logger.debug ("BrokerAppln::driver - wait till we are the leader")
+        if not self.mw_obj.isBrokerLeader():
+          continue
+        #------------------------------------------------
         start = time.monotonic()
         while True:
           results = self.mw_obj.lookup_topic (self.topiclist) # if lookup is successful
@@ -131,8 +145,8 @@ class BrokerAppln ():
             break
           self.logger.debug ("BrokerAppln::driver - lookup took failed, retrying")
         self.logger.debug ("BrokerAppln::driver - lookup took {} seconds".format (end-start))
+        #------------------------------------------------
         self.mw_obj.disseminateViaBroker()
-        #time.sleep (0.1)  # sleep between calls so that we don't make excessive calls
         
     except Exception as e:
       raise e

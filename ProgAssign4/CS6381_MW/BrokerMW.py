@@ -162,6 +162,11 @@ class BrokerMW ():
     elif type == "broker":
       self.broker_leader = leader
 
+  
+  def isBrokerLeader (self):
+    #self.logger.debug ("BrokerMW::isBrokerLeader - the current broker leader is: " + self.broker_leader)
+    return self.broker_leader == self.name
+
 
   def reconnect (self, type, path):
     try:
@@ -231,7 +236,7 @@ class BrokerMW ():
           self.logger.debug ("BrokerMW::first_election -- elected leader: {} & address is: {}".format (leader, leader_addr))
           self.zk_adapter.set_leader (leader_path, leader_addr)
           self.logger.debug ("BrokerMW::first_election -- set leader: {}".format (leader))
-          self.update_leader ("discovery", leader_addr) 
+          self.update_leader (type, leader) 
 
       except Exception as e:
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
@@ -240,9 +245,9 @@ class BrokerMW ():
 
 
   ########################################
-  # watch the discovery leader changes
+  # watch the broker leader changes
   ########################################
-  def on_leader_change(self, type="discovery"):
+  def on_leader_change(self, type="broker"):
     if type == "discovery":
       path, leader_path = self.zk_adapter.discoveryPath, self.zk_adapter.discoveryLeaderPath
     elif type == "broker":
@@ -252,9 +257,9 @@ class BrokerMW ():
     def watch_node(children):
       try:
         self.logger.debug("BrokerMW::on_leader_change - invoked")
-        leader_addr = self.zk_adapter.election (path, leader_path)
-        self.logger.debug("BrokerMW::on_leader_change - leader: {}".format(leader_addr))
-        self.update_leader ("discovery", leader_addr)
+        leader = self.zk_adapter.election (path, leader_path)
+        self.logger.debug("BrokerMW::on_leader_change - leader: {}".format(leader))
+        self.update_leader (type, leader)
       
       except Exception as e:
           traceback.print_exc()
@@ -293,6 +298,7 @@ class BrokerMW ():
           self.logger.debug ("Unexpected error in watch_node:", sys.exc_info()[0])
           traceback.print_exc()
           raise e 
+      
 
   #----------------------------------------
 
